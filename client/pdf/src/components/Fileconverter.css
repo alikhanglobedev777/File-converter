@@ -1,0 +1,170 @@
+/* =========================
+   File Converter
+========================= */
+.container {
+  max-width: 650px;
+  margin: 60px auto;
+  padding: 30px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+  text-align: center;
+  animation: fadeIn 0.8s ease;
+  overflow-x: hidden; /* 🔥 prevent horizontal bar */
+}
+
+.container h2 {
+  font-size: 28px;
+  color: #0073e6;
+  margin-bottom: 25px;
+  position: relative;
+}
+
+.container h2::after {
+  content: "";
+  width: 70px;
+  height: 3px;
+  background: #0073e6;
+  display: block;
+  margin: 10px auto 0;
+  border-radius: 3px;
+}
+
+/* =========================
+   Upload Area (FIXED)
+========================= */
+.upload-area {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  border: 2px dashed #0073e6; /* 🔥 FIXED: same border always */
+  border-radius: 14px;
+  padding: 50px 20px;
+  cursor: pointer;
+  margin-bottom: 25px;
+  background: linear-gradient(145deg, #f9faff, #e6f0ff);
+  box-shadow: inset 0 4px 12px rgba(0,0,0,0.05);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+  box-sizing: border-box;
+}
+
+.upload-area:hover {
+  background: linear-gradient(145deg, #e6f0ff, #f0f4ff);
+  box-shadow: inset 0 0 0 2px #0073e6, 0 12px 30px rgba(0,0,0,0.15); 
+  /* 🔥 replaces border/scale */
+}
+
+.upload-area input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload-area p {
+  font-size: 16px;
+  color: #555;
+  transition: color 0.3s ease;
+}
+
+.upload-area:hover p {
+  color: #0073e6;
+}
+
+/* =========================
+   Buttons
+========================= */
+button {
+  background-color: #0073e6;
+  color: #fff;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+button:hover {
+  background-color: #005bb5;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(0,0,0,0.2);
+}
+
+/* =========================
+   Animations
+========================= */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================
+   GLOBAL FIX (VERY IMPORTANT)
+========================= */
+html, body {
+  overflow-x: hidden; /* 🔥 eliminates side bar */
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+/* =========================
+   File Converter Upload Area & Buttons
+========================= */
+
+.upload-area {
+  border: 2px dashed #0073e6;
+  border-radius: 14px;
+  padding: 50px 20px;
+  text-align: center;
+  background: linear-gradient(145deg, #f9faff, #e6f0ff);
+  box-shadow: inset 0 4px 12px rgba(0,0,0,0.05);
+  cursor: pointer;
+  margin-bottom: 25px;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.upload-area:hover {
+  background: linear-gradient(145deg, #e6f0ff, #f0f4ff);
+  box-shadow: inset 0 0 0 2px #0073e6, 0 12px 30px rgba(0,0,0,0.15);
+}
+
+.upload-area p {
+  font-size: 16px;
+  color: #555;
+  transition: color 0.3s ease;
+}
+
+.upload-area:hover p {
+  color: #0073e6;
+}
+
+button {
+  background-color: #0073e6;
+  color: #fff;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+button:hover {
+  background-color: #005bb5;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(0,0,0,0.2);
+}
+
+.message {
+  margin-top: 15px;
+  font-size: 15px;
+  color: #333;
+}

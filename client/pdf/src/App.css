@@ -1,0 +1,62 @@
+/* =========================
+   Global Reset & Base
+========================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', 'Segoe UI', sans-serif;
+}
+
+html, body {
+  width: 100%;
+  overflow-x: hidden !important;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(135deg, #f0f4ff, #ffffff);
+  color: #333;
+  min-height: 100vh;
+}
+
+/* Prevent layout shift */
+img, video, iframe {
+  max-width: 100%;
+  display: block;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Inputs & Buttons */
+button, input, select, textarea {
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Links */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Remove scrollbar flicker */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #0073e6;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,135 @@
+/* =========================
+   Global Styles
+========================= */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Body & HTML */
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+  background: #f5f7ff;
+}
+
+/* =========================
+   Auth Container
+========================= */
+.auth-container {
+  max-width: 420px;
+  width: 90%;
+  min-height: 400px;
+  padding: 40px 30px;
+  background: linear-gradient(135deg, #f0f4ff, #ffffff);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+  text-align: center;
+
+  /* Centering container */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  
+  /* Animations & transitions */
+  animation: fadeInAuth 0.8s ease forwards;
+  transition: all 0.4s ease;
+}
+
+/* Headings */
+.auth-container h2 {
+  font-size: 28px;
+  color: #0073e6;
+  margin-bottom: 25px;
+  letter-spacing: 1px;
+  animation: slideDown 0.8s ease forwards;
+}
+
+/* Input fields */
+.auth-container input {
+  width: 100%;
+  padding: 14px 12px;
+  margin: 10px 0;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.auth-container input:focus {
+  border-color: #0073e6;
+  box-shadow: 0 0 12px rgba(0,115,230,0.3);
+  outline: none;
+}
+
+/* Buttons */
+.auth-container button {
+  width: 100%;
+  padding: 14px;
+  margin-top: 15px;
+  background: linear-gradient(135deg, #0073e6, #005bb5);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 18px;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+
+.auth-container button:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 12px 25px rgba(0,0,0,0.2);
+}
+
+/* Animations */
+@keyframes fadeInAuth {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  0% { opacity: 0; transform: translateY(-20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================
+   Responsive Styles
+========================= */
+@media (max-height: 700px) {
+  .auth-container {
+    position: relative;
+    top: 0;
+    left: 0;
+    transform: none;
+    margin: 50px auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-container {
+    padding: 30px 20px;
+  }
+
+  .auth-container h2 {
+    font-size: 24px;
+  }
+
+  .auth-container button {
+    font-size: 16px;
+    padding: 12px;
+  }
+
+  .auth-container input {
+    padding: 12px 10px;
+    font-size: 14px;
+  }
+}
+body {
+  overflow: hidden;
+}

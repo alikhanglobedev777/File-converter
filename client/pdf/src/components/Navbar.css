@@ -1,0 +1,349 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+* {
+  font-family: 'Poppins', sans-serif;
+  box-sizing: border-box;
+}
+
+/* =========================
+   NAVBAR BASE
+========================= */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #0066ff, #0033aa);
+  padding: 12px 20px;
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 999;
+}
+
+/* LOGO WITH MULTI COLOR GLOW */
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(270deg, #ff0080, #00f0ff, #00ff88, #ffea00);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: glowMove 6s ease infinite;
+}
+
+@keyframes glowMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* CENTER NAV LINKS */
+.nav-links {
+  display: flex;
+  gap: 18px;
+  list-style: none;
+  align-items: center;
+  position: relative;
+}
+
+/* NAV LINK ITEMS */
+.nav-links li {
+  position: relative;
+}
+
+/* LINKS */
+.nav-links li a,
+.nav-links li span.dropdown-btn {
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.3s ease;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.nav-links li a:hover,
+.nav-links li span.dropdown-btn:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+/* DROPDOWN MENU */
+.nav-links li .dropdown-menu {
+  position: absolute; /* overlay, does not expand navbar */
+  top: 100%; /* below parent */
+  left: 0;
+  background: #0033aa;
+  border-radius: 6px;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  padding: 8px 0;
+  display: none;
+  flex-direction: column;
+  z-index: 999;
+}
+
+/* SHOW DROPDOWN ON HOVER (DESKTOP) */
+.nav-links li:hover .dropdown-menu {
+  display: flex;
+}
+
+/* DROPDOWN ITEMS */
+.nav-links li .dropdown-menu li a {
+  padding: 8px 15px;
+  font-size: 14px;
+  color: white;
+}
+
+.nav-links li .dropdown-menu li a:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+/* DESKTOP AUTH SECTION */
+.nav-auth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: white;
+  border: 1px solid white;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.auth-btn.primary {
+  background: white;
+  color: #0033aa;
+  font-weight: 600;
+}
+
+/* USER BOX */
+.user-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-icon {
+  font-size: 20px;
+}
+
+.user-box span {
+  font-size: 14px;
+}
+
+.user-box button {
+  background: #ff4d4d;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* HAMBURGER ICON */
+.hamburger {
+  display: none;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+/* MOBILE AUTH (inside menu) */
+.mobile-auth {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.mobile-auth a,
+.mobile-auth button {
+  color: white;
+  text-decoration: none;
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.mobile-user {
+  font-weight: 600;
+}
+
+/* ================== MOBILE VIEW ================== */
+@media (max-width: 900px) {
+
+  .nav-links {
+    position: absolute;
+    top: 60px;
+    left: 0;
+    width: 100%;
+    background: #0033aa;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    transform: translateY(-150%);
+    transition: transform 0.4s ease;
+    gap: 14px;
+  }
+
+  .nav-links.active {
+    transform: translateY(0);
+  }
+
+  .nav-auth {
+    display: none;
+  }
+
+  .hamburger {
+    display: block;
+  }
+
+  .mobile-auth {
+    display: flex;
+  }
+
+  /* DROPDOWN MENU MOBILE */
+  .nav-links li .dropdown-menu {
+    position: relative;
+    top: 0;
+    left: 0;
+    box-shadow: none;
+    background: #0033aa;
+    display: none; /* initially hidden */
+  }
+
+  .nav-links li.dropdown-active .dropdown-menu {
+    display: flex;
+  }
+}
+
+/* =========================
+   ALL SERVICES DROPDOWN
+========================= */
+.nav-links li .dropdown-btn {
+  background: linear-gradient(135deg, #ff0080, #00f0ff);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-block;
+  transition: background 0.3s ease;
+}
+
+.nav-links li .dropdown-btn:hover {
+  background: linear-gradient(135deg, #ff33aa, #00e0ff);
+}
+
+/* Dropdown menu */
+.nav-links li .dropdown-menu {
+  position: absolute;
+  top: 40px; /* just below the button */
+  left: 0;
+  background: #0033aa;
+  border-radius: 8px;
+  padding: 10px 0;
+  display: none;
+  flex-direction: column;
+  min-width: 200px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.25);
+  z-index: 999;
+}
+
+/* Show dropdown when active */
+.nav-links li.active .dropdown-menu {
+  display: flex;
+}
+
+/* Dropdown items */
+.nav-links li .dropdown-menu li a {
+  padding: 8px 20px;
+  font-size: 14px;
+  color: white;
+  transition: background 0.2s ease;
+}
+
+.nav-links li .dropdown-menu li a:hover {
+  background: rgba(255,255,255,0.2);
+  border-radius: 6px;
+}
+
+/* =========================
+   MOBILE VIEW DROPDOWN
+========================= */
+@media (max-width: 900px) {
+  .nav-links li .dropdown-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .nav-links li .dropdown-menu {
+    position: relative;
+    top: 0;
+    left: 0;
+    box-shadow: none;
+    min-width: 100%;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .nav-links li .dropdown-menu li a {
+    padding: 12px 0;
+  }
+}
+/* =========================
+   ALL SERVICES BUTTON CONSISTENT
+========================= */
+.nav-links li .dropdown-btn {
+  background: transparent; /* same as other links */
+  padding: 6px 8px;        /* same as nav-links li a */
+  border-radius: 6px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  display: inline-block;
+}
+
+.nav-links li .dropdown-btn:hover {
+  background: rgba(255,255,255,0.2); /* hover effect same as other nav links */
+}
+
+/* Dropdown menu adjustments (keep previous styles) */
+.nav-links li .dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #0033aa;
+  border-radius: 6px;
+  padding: 8px 0;
+  display: none;
+  flex-direction: column;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 999;
+}
+
+.nav-links li.active .dropdown-menu {
+  display: flex;
+}
+
+.nav-links li .dropdown-menu li a {
+  padding: 8px 15px;
+  font-size: 14px;
+  color: white;
+  transition: background 0.2s ease;
+}
+
+.nav-links li .dropdown-menu li a:hover {
+  background: rgba(255,255,255,0.2);
+  border-radius: 6px;
+}
