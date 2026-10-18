@@ -1,53 +1,28 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Link, Navigate, Route, Routes } from "react-router-dom";
+import { FiArrowLeft } from "react-icons/fi";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Navbar from "./components/Navbar";
+import Home from "./components/Home";
 import FileConverter from "./components/FileConverter";
 import Login from "./components/Login";
 import Signup from "./components/Signup";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { services } from "./data/services";
 
-const App = () => {
+export default function App() {
   return (
     <Router>
-      <Navbar />
-      <ToastContainer position="top-right" autoClose={2000} hideProgressBar />
-
-      <Routes>
-        {/* Default route */}
-        <Route path="/" element={<Navigate to="/pdf-to-excel" />} />
-
-        {/* PDF Conversions */}
-        <Route path="/pdf-to-excel" element={<FileConverter service="pdf-to-excel" />} />
-        <Route path="/pdf-to-word" element={<FileConverter service="pdf-to-word" />} />
-        <Route path="/pdf-to-jpg" element={<FileConverter service="pdf-to-jpg" />} />
-        <Route path="/pdf-to-ppt" element={<FileConverter service="pdf-to-ppt" />} />
-
-        {/* Excel Conversions */}
-        <Route path="/excel-to-pdf" element={<FileConverter service="excel-to-pdf" />} />
-        <Route path="/excel-to-word" element={<FileConverter service="excel-to-word" />} />
-        <Route path="/excel-to-ppt" element={<FileConverter service="excel-to-ppt" />} />
-
-        {/* New Services */}
-        <Route path="/pdf-merger" element={<FileConverter service="pdf-merger" />} />
-        <Route path="/zip-maker" element={<FileConverter service="zip-maker" />} />
-
-        {/* Auth Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-
-        {/* 404 Fallback */}
-        <Route
-          path="*"
-          element={
-            <h2 style={{ textAlign: "center", marginTop: "50px" }}>
-              404 - Page Not Found
-            </h2>
-          }
-        />
-      </Routes>
+      <Navbar>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          {services.map((tool) => <Route key={tool.id} path={`/${tool.id}`} element={<FileConverter key={tool.id} service={tool.id} />} />)}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/home" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<div className="not-found"><span className="eyebrow">PAGE NOT FOUND</span><h1>Looks like this page moved.</h1><p>The file tool you're looking for might be somewhere else.</p><Link to="/" className="button button--primary"><FiArrowLeft /> Back to workspace</Link></div>} />
+        </Routes>
+      </Navbar>
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar theme="light" />
     </Router>
   );
-};
-
-export default App;
+}

@@ -1,16 +1,45 @@
-# React + Vite
+# AK Converter — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A white-and-blue, responsive file-conversion workspace built with React, React Router and Vite. It provides an overview dashboard, searchable-by-category tool cards, a shared upload workspace for nine conversion endpoints, and sign-in/sign-up pages. The original Express conversion API is unchanged.
 
-Currently, two official plugins are available:
+## Run it
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+From the repository root:
 
-## React Compiler
+```bash
+cd server
+cp .env.example .env
+# Fill in the MongoDB and JWT settings in server/.env
+npm ci
+npm start
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Then, in another terminal:
 
-## Expanding the ESLint configuration
+```bash
+cd client/pdf
+npm ci
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Open the local URL Vite prints (normally `http://localhost:5173`). Run `npm run build`, `npm run lint` and `npm test` from `client/pdf` when dependencies are installed. The `npm test` checks verify tool configuration and the fixed case-sensitive CSS import without requiring the backend.
+
+## Connecting to a backend
+
+The UI sends requests to `http://localhost:5000` by default. To use a different backend origin, copy `.env.example` to `.env.local` and set:
+
+```dotenv
+VITE_API_URL=https://your-api-host.example
+```
+
+Do **not** include `/api` in that variable; the UI appends `/api/convert/:service` and `/api/auth/:action`. Restart Vite after updating the environment file. The API must allow the frontend origin through CORS. Do not put server secrets into `VITE_` variables.
+
+## What's included
+
+- Dashboard with nine tool cards, category filters, and workflow instructions.
+- Shared uploader with drag-and-drop, file selection/removal, error/success feedback, and per-file 50 MB limits.
+- PDF conversion to Excel, Word, PowerPoint, JPG; Excel conversion to PDF, Word, PowerPoint; PDF merging; ZIP creation.
+- Account sign-in/sign-up screens. **Conversions don't require an account** in the existing backend.
+- Responsive desktop sidebar/mobile drawer with accessible controls and consistent blue/white/black styling.
+
+PDF-to-PowerPoint uses page images, not editable slide content. PDF-to-Excel and PDF-to-Word depend on extractable text; scans require OCR. The file size and count restrictions are enforced by the existing backend as well as surfaced in the UI. Backend availability is required for actual conversions and authentication.
