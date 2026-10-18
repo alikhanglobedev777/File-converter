@@ -1,5 +1,4 @@
 import React, { useState, useContext } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { AuthContext } from "../context/AuthContext";
@@ -15,20 +14,26 @@ const Login = () => {
     e.preventDefault(); // 🔥 stops page reload
 
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", { email, password });
+      const res = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Login failed");
 
       const userData = {
-        name: res.data.name,
-        email: res.data.email,
+        name: data.name,
+        email: data.email,
       };
 
-      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("token", data.token);
       login(userData);
 
-      toast.success(`Welcome ${res.data.name}!`);
+      toast.success(`Welcome ${data.name}!`);
       navigate("/");
     } catch (err) {
-      toast.error(err.response?.data?.error || "Login failed");
+      toast.error(err.message || "Login failed");
     }
   };
 

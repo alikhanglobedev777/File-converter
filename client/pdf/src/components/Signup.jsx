@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import './auth.css';
@@ -19,12 +18,18 @@ const Signup = () => {
     }
 
     try {
-      await axios.post("http://localhost:5000/api/auth/signup", { name, email, password });
+      const res = await fetch("http://localhost:5000/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Signup failed");
 
       toast.success("Signup successful! Please login.");
       navigate("/login");
     } catch (err) {
-      toast.error(err.response?.data?.error || "Signup failed");
+      toast.error(err.message || "Signup failed");
       console.error("Signup frontend error:", err);
     }
   };

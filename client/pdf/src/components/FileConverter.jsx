@@ -1,5 +1,4 @@
 import React, { useState, useRef } from "react";
-import axios from "axios";
 import "./FileConverter.css";
 
 const FileConverter = ({ service }) => {
@@ -68,17 +67,24 @@ const FileConverter = ({ service }) => {
       setLoading(true);
       setMessage("Uploading and converting...");
 
-      const res = await axios.post(
+      const res = await fetch(
         `http://localhost:5000/api/convert/${service}`,
-        formData,
-        { responseType: "blob" } // important for binary files
+        { method: "POST", body: formData }
       );
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || "Conversion failed");
+      }
 
       // Determine proper filename
       let filename = "";
-      const disposition = res.headers["content-disposition"];
-      if (disposition && disposition.includes("filename=")) {
-        filename = disposition.split("filename=")[1].replace(/"/g, "").trim();
+      const disposition = res.headers.get("content-disposition");
+      const encodedName = disposition?.match(/filename\*=UTF-8''([^;]+)/i);
+      const plainName = disposition?.match(/filename="([^"]+)"|filename=([^;]+)/i);
+      if (encodedName) {
+        filename = decodeURIComponent(encodedName[1]);
+      } else if (plainName) {
+        filename = (plainName[1] || plainName[2]).trim();
       } else {
         // fallback: assign proper extension based on service
         let ext = "file";
@@ -89,7 +95,7 @@ const FileConverter = ({ service }) => {
           case "pdf-to-word": ext = "docx"; break;
           case "pdf-to-excel": ext = "xlsx"; break;
           case "pdf-to-ppt": ext = "pptx"; break;
-          case "pdf-to-jpg": ext = "jpg"; break;
+          case "pdf-to-jpg": ext = res.headers.get("content-type")?.includes("zip") ? "zip" : "jpg"; break;
           case "pdf-merger":
           case "zip-maker": ext = "zip"; break;
           default: ext = "file";
@@ -100,7 +106,7 @@ const FileConverter = ({ service }) => {
       }
 
       // Download the converted file
-      const blob = new Blob([res.data], { type: res.data.type });
+      const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -113,7 +119,7 @@ const FileConverter = ({ service }) => {
       setMessage("Conversion successful ✅");
     } catch (err) {
       console.error(err);
-      setMessage("Conversion failed ❌");
+      setMessage(err.message || "Conversion failed");
     } finally {
       setLoading(false);
       setFile(null);
@@ -124,6 +130,9 @@ const FileConverter = ({ service }) => {
   return (
     <div className="container">
       <h2>{service.replace(/-/g, " ").toUpperCase()}</h2>
+      {service === "pdf-to-excel" && <p>Tables become editable cells. Logos and page headings retain their appearance as images. Scanned pages require OCR for editable text.</p>}
+      {service === "pdf-to-jpg" && <p>One page downloads as a JPG. Multiple pages download together in a ZIP.</p>}
+      {service === "pdf-to-ppt" && <p>Each PDF page becomes a slide image, preserving its appearance.</p>}
 
       <div
         className="upload-area"
@@ -159,6 +168,7 @@ const FileConverter = ({ service }) => {
 
         <input
           type="file"
+          accept={service === "zip-maker" ? undefined : service.startsWith("excel-") ? ".xlsx,.xls" : ".pdf"}
           ref={fileInputRef}
           onChange={handleFileChange}
           multiple={service === "pdf-merger" || service === "zip-maker"}

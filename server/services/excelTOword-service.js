@@ -1,36 +1,31 @@
-const XLSX = require("xlsx");
-const fs = require("fs");
-const path = require("path");
-const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun } = require("docx");
+const fs = require('node:fs/promises');
+const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType } = require('docx');
+const { outputPath } = require('./output');
+const { readWorkbook, displayCell, color } = require('./workbook');
 
-// Excel → Word
-exports.convertExcelToWord = async (inputPath) => {
-  const workbook = XLSX.readFile(inputPath);
-  const outputDir = path.join(__dirname, "../outputs");
-  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
-  const outputPath = path.join(outputDir, `${path.basename(inputPath, path.extname(inputPath))}.docx`);
-  const doc = new Document({ sections: [] });
-
-  workbook.SheetNames.forEach((sheetName) => {
-    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
-    const table = new Table({
-      rows: sheet.map(
-        (row) =>
-          new TableRow({
-            children: row.map(
-              (cell) =>
-                new TableCell({
-                  children: [new Paragraph({ children: [new TextRun(cell ? String(cell) : "")] })],
-                })
-            ),
-          })
-      ),
-    });
-    doc.addSection({ children: [table] });
+exports.convertExcelToWord = async inputPath => {
+  const workbook = await readWorkbook(inputPath);
+  const sections = workbook.worksheets.map(sheet => {
+    const children = [new Paragraph({ children: [new TextRun({ text: sheet.name, bold: true, size: 28 })] })];
+    if (sheet.rowCount) children.push(new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: Array.from({ length: sheet.rowCount }, (_, r) => new TableRow({
+        children: Array.from({ length: Math.max(1, sheet.columnCount) }, (_, c) => {
+          const cell = sheet.getCell(r+1,c+1);
+          return new TableCell({
+            shading: cell.fill?.type === 'pattern' && cell.fill.pattern === 'solid' ? { fill: color(cell.fill.fgColor, 'FFFFFF') } : undefined,
+            children: [new Paragraph({ children: [new TextRun({
+              text: cell.isMerged && cell.master.address !== cell.address ? '' : displayCell(cell),
+              bold: cell.font?.bold, italics: cell.font?.italic, color: color(cell.font?.color, '000000'),
+              size: (cell.font?.size || 10)*2, font: cell.font?.name || 'Arial',
+            })] })],
+          });
+        }),
+      })),
+    }));
+    return { children };
   });
-
-  const buffer = await Packer.toBuffer(doc);
-  fs.writeFileSync(outputPath, buffer);
-  return outputPath;
+  const filename = outputPath('docx');
+  await fs.writeFile(filename, await Packer.toBuffer(new Document({ sections })));
+  return filename;
 };

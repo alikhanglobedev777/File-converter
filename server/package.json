@@ -2,10 +2,14 @@
   "name": "file-converter-server",
   "version": "1.0.0",
   "main": "server.js",
+  "engines": { "node": ">=22.13.0" },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check:db": "node scripts/check-db.js",
+    "test": "node --test"
   },
   "dependencies": {
+    "@napi-rs/canvas": "0.1.88",
     "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
@@ -19,10 +23,7 @@
     "multer": "^2.0.2",
     "nodemon": "^3.1.11",
     "pdf-lib": "^1.17.1",
-    "pdf-merger-js": "^5.1.2",
-    "pdf-parse": "^1.1.4",
-    "pdf-poppler": "^0.2.3",
-    "pdfjs-dist": "^5.4.530",
+    "pdfjs-dist": "5.4.530",
     "pdfkit": "^0.17.2",
     "pptxgenjs": "^4.0.1",
     "sharp": "^0.34.5",
