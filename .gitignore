@@ -2,10 +2,14 @@
 node_modules/
 
 # Environment variables
+.env
+.env.*
+!.env.example
 
 # Runtime folders
 uploads/
 outputs/
+artifacts/
 
 # Logs
 *.log

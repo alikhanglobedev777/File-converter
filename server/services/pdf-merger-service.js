@@ -1,34 +1,21 @@
-const PDFMerger = require("pdf-merger-js");
-const fs = require("fs");
-const path = require("path");
+const { PDFDocument } = require('pdf-lib');
+const fs = require('node:fs');
+const { outputPath } = require('./output');
 
-// Safely delete a file
-const safeUnlink = (filePath) => {
-  try {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  } catch (err) {
-    console.error("Failed to delete file:", filePath, err);
+function safeUnlink(filename) {
+  if (!filename) return;
+  try { fs.unlinkSync(filename); } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Temporary file cleanup failed:', error.code);
   }
-};
-
-// Merge multiple PDFs
-const mergePdfs = async (filePaths) => {
-  const merger = new PDFMerger();
-
-  for (const fp of filePaths) {
-    const absPath = path.resolve(fp); // Make absolute path
-    if (!fs.existsSync(absPath)) throw new Error(`File not found: ${absPath}`);
-    console.log("Adding PDF:", absPath);
-    await merger.add(absPath);
+}
+async function mergePdfs(filenames) {
+  const merged = await PDFDocument.create();
+  for (const filename of filenames) {
+    const source = await PDFDocument.load(fs.readFileSync(filename));
+    for (const page of await merged.copyPages(source, source.getPageIndices())) merged.addPage(page);
   }
-
-  const outputDir = path.resolve(__dirname, "../outputs");
-  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
-  const outputPath = path.join(outputDir, `merged-${Date.now()}.pdf`);
-  await merger.save(outputPath);
-  console.log("Merged PDF saved to:", outputPath);
-  return outputPath;
-};
-
+  const filename = outputPath('pdf');
+  fs.writeFileSync(filename, await merged.save());
+  return filename;
+}
 module.exports = { mergePdfs, safeUnlink };

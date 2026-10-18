@@ -2,6 +2,8 @@ const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
+const { randomUUID } = require("node:crypto");
+const { safeUnlink } = require("../services/pdf-merger-service");
 const {
   pdfToExcel,
   pdfToWord,
@@ -26,8 +28,7 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Use timestamp + original name to avoid conflicts
-    cb(null, Date.now() + "-" + file.originalname);
+    cb(null, randomUUID() + path.extname(file.originalname).toLowerCase());
   }
 });
 
@@ -35,6 +36,12 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB limit
+  fileFilter: (req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const allowed = req.path === "/zip-maker" ||
+      (req.path.startsWith("/excel-") ? [".xlsx", ".xls"].includes(extension) : extension === ".pdf");
+    cb(allowed ? null : new Error("Upload a file matching the selected conversion."), allowed);
+  },
 });
 
 // ========================
@@ -57,5 +64,14 @@ router.post("/pdf-merger", upload.array("files", 10), pdfMerger);
 
 // ZIP Maker (accepts 1–20 files)
 router.post("/zip-maker", upload.array("files", 20), zipMaker);
+
+router.use((error, req, res, next) => {
+  const files = req.files || (req.file ? [req.file] : []);
+  files.forEach(file => safeUnlink(file.path));
+  if (res.headersSent) return next(error);
+  res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
+    error: error.code === "LIMIT_FILE_SIZE" ? "Maximum file size is 50 MB." : "Upload valid files for the selected conversion and check the file count.",
+  });
+});
 
 module.exports = router;
