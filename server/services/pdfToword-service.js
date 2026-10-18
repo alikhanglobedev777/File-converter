@@ -1,6 +1,6 @@
 const fs = require('node:fs/promises');
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, WidthType } = require('docx');
-const { outputPath } = require('./output');
+const { writeOutput } = require('./output');
 const { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems } = require('./pdf-layout');
 
 exports.convertPdfToWord = async (inputPath) => {
@@ -18,9 +18,11 @@ exports.convertPdfToWord = async (inputPath) => {
           const right = Math.max(...layout.cells.map(c => c.x + c.width));
           const top = Math.min(...layout.cells.map(c => c.y));
           const bottom = Math.max(...layout.cells.map(c => c.y + c.height));
+          const printableWidth = Math.max(1, layout.width - 40); // left/right Word margins
+          const headerScale = Math.min(1, printableWidth / (right - left));
           const imageParagraph = (y, height) => new Paragraph({ spacing: { after: 0, before: 0 }, children: [new ImageRun({
             type: 'png', data: cropPage(pdf, rendered, left, y, right - left, height),
-            transformation: { width: (right - left) * 96 / 72, height: height * 96 / 72 },
+            transformation: { width: (right - left) * headerScale * 96 / 72, height: height * headerScale * 96 / 72 },
           })] });
           if (top > 1) children.push(imageParagraph(0, top));
           const rows = [];
@@ -54,17 +56,18 @@ exports.convertPdfToWord = async (inputPath) => {
             })) }));
           }
         } else {
+          // Image-only PDFs are inserted at their original aspect ratio, sized to
+          // fit the Word page instead of stretching beyond its printable width.
+          const scale = Math.min(1, Math.max(1, layout.width - 40) / layout.width);
           children.push(new Paragraph({ children: [new ImageRun({
             type: 'png', data: rendered.canvas.toBuffer('image/png'),
-            transformation: { width: layout.width * 96 / 72, height: (layout.height - 20) * 96 / 72 },
+            transformation: { width: layout.width * scale * 96 / 72, height: layout.height * scale * 96 / 72 },
           })] }));
         }
       } finally { pdf.canvasFactory.destroy(rendered); }
       sections.push({ properties: { page: { size: { width: layout.width * 20, height: layout.height * 20 }, margin: { top: 0, bottom: 0, left: 400, right: 400 } } }, children });
       page.cleanup();
     }
-    const filename = outputPath('docx');
-    await fs.writeFile(filename, await Packer.toBuffer(new Document({ sections })));
-    return filename;
+    return writeOutput('docx', async filename => fs.writeFile(filename, await Packer.toBuffer(new Document({ sections }))));
   } finally { await pdf.destroy(); }
 };

@@ -1,5 +1,5 @@
 const PPTX = require('pptxgenjs');
-const { outputPath } = require('./output');
+const { writeOutput } = require('./output');
 const { openPdf, renderPage } = require('./pdf-layout');
 
 exports.convertPdfToPpt = async (inputPath) => {
@@ -23,8 +23,6 @@ exports.convertPdfToPpt = async (inputPath) => {
       } finally { document.canvasFactory.destroy(rendered); }
       page.cleanup();
     }
-    const filename = outputPath('pptx');
-    await pptx.writeFile({ fileName: filename });
-    return filename;
+    return writeOutput('pptx', filename => pptx.writeFile({ fileName: filename }));
   } finally { await document.destroy(); }
 };

@@ -113,7 +113,7 @@ export const services = [
     multiple: true,
     minFiles: 2,
     maxFiles: 10,
-    points: ["Combine 2 to 10 PDFs", "Keep pages in selection order", "Download one merged document"],
+    points: ["Combine 2 to 10 PDFs", "Reorder files before merging", "Download one PDF, never a ZIP"],
   },
   {
     id: "zip-maker",

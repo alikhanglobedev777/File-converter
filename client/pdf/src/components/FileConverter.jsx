@@ -2,11 +2,12 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   FiAlertCircle, FiArrowRight, FiCheck, FiCheckCircle, FiChevronRight,
-  FiDownload, FiFile, FiInfo, FiPlus, FiTrash2, FiUploadCloud, FiZap,
+  FiArrowDown, FiArrowUp, FiDownload, FiFile, FiInfo, FiPlus, FiTrash2, FiUploadCloud, FiZap,
 } from "react-icons/fi";
 import { getService, services } from "../data/services";
 import ToolIcon from "./ToolIcon";
 import ToolCard from "./ToolCard";
+import { validateDownload } from "../utils/downloadFormat";
 import "./Fileconverter.css";
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -14,15 +15,6 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").r
 const formatBytes = (value) => value >= 1024 * 1024
   ? `${(value / (1024 * 1024)).toFixed(1)} MB`
   : `${Math.max(1, Math.ceil(value / 1024))} KB`;
-
-function filenameFromHeader(disposition) {
-  const encoded = disposition?.match(/filename\*=UTF-8''([^;]+)/i);
-  if (encoded) {
-    try { return decodeURIComponent(encoded[1]); } catch { /* fall through */ }
-  }
-  const plain = disposition?.match(/filename="([^"]+)"|filename=([^;]+)/i);
-  return (plain?.[1] || plain?.[2] || "").trim();
-}
 
 export default function FileConverter({ service }) {
   const tool = getService(service);
@@ -82,6 +74,17 @@ export default function FileConverter({ service }) {
     setFeedback(null);
   };
 
+  const moveFile = (index, direction) => {
+    setFiles((items) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= items.length) return items;
+      const next = [...items];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+    setFeedback(null);
+  };
+
   const handleUpload = async (event) => {
     event.preventDefault();
     if (loading) return;
@@ -102,14 +105,9 @@ export default function FileConverter({ service }) {
         throw new Error(error.error || `Conversion failed (HTTP ${response.status}).`);
       }
 
-      const extension = service === "pdf-to-jpg"
-        ? response.headers.get("content-type")?.includes("zip") ? "zip" : "jpg"
-        : tool.outputLabel.match(/\.(pdf|xlsx|docx|pptx|zip)/)?.[1] || "file";
-      const defaultBase = multi ? (service === "pdf-merger" ? "merged" : "archive") : files[0].name.replace(/\.[^.]+$/, "");
-      // Use only a safe basename if a server-supplied Content-Disposition is present.
-      const serverName = filenameFromHeader(response.headers.get("content-disposition"));
-      const filename = serverName.split(/[\\/]/).pop() || `${defaultBase}.${extension}`;
       const blob = await response.blob();
+      // Do not let an unexpected ZIP/JSON response masquerade as merged.pdf.
+      const { filename } = await validateDownload(service, response, blob, files[0]?.name);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -117,7 +115,9 @@ export default function FileConverter({ service }) {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      // Leave the Blob URL alive while the browser hands large downloads to its
+      // download manager; revoking it immediately can interrupt some browsers.
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 
       setFeedback({ kind: "success", text: `Done! Your ${filename} download should begin automatically.` });
       setFiles([]);
@@ -187,10 +187,15 @@ export default function FileConverter({ service }) {
                     <li key={`${item.name}-${item.size}-${index}`}>
                       <span className="file-selection__icon"><FiFile aria-hidden="true" /></span>
                       <span className="file-selection__details"><strong title={item.name}>{item.name}</strong><small>{formatBytes(item.size)}</small></span>
+                      {service === "pdf-merger" && <span className="file-selection__order">
+                        <button type="button" className="file-selection__move" aria-label={`Move ${item.name} up`} title="Move up" disabled={loading || index === 0} onClick={() => moveFile(index, -1)}><FiArrowUp /></button>
+                        <button type="button" className="file-selection__move" aria-label={`Move ${item.name} down`} title="Move down" disabled={loading || index === files.length - 1} onClick={() => moveFile(index, 1)}><FiArrowDown /></button>
+                      </span>}
                       <button type="button" className="file-selection__remove" aria-label={`Remove ${item.name}`} title={`Remove ${item.name}`} disabled={loading} onClick={() => removeFile(index)}><FiTrash2 /></button>
                     </li>
                   ))}
                 </ul>
+                {service === "pdf-merger" && <p className="file-selection__hint">PDF pages will appear in this order. Use the arrows to rearrange files before merging.</p>}
               </div>
             )}
 

@@ -8,4 +8,16 @@ function outputPath(extension) {
   return path.join(directory, `${randomUUID()}.${extension}`);
 }
 
-module.exports = { outputPath };
+// Files created by a failed conversion must not be left in outputs/.
+async function writeOutput(extension, writer) {
+  const filename = outputPath(extension);
+  try {
+    await writer(filename);
+    return filename;
+  } catch (error) {
+    await fs.promises.rm(filename, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+module.exports = { outputPath, writeOutput };
