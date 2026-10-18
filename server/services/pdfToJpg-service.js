@@ -1,5 +1,5 @@
 const fs = require('node:fs/promises');
-const { outputPath } = require('./output');
+const { writeOutput } = require('./output');
 const { openPdf, renderPage } = require('./pdf-layout');
 const { makeZip } = require('./zip-service');
 
@@ -11,8 +11,7 @@ exports.convertPdfToJpg = async (inputPath) => {
       const page = await document.getPage(number);
       const rendered = await renderPage(document, page, 2);
       try {
-        const filename = outputPath('jpg');
-        await fs.writeFile(filename, rendered.canvas.toBuffer('image/jpeg', 90));
+        const filename = await writeOutput('jpg', file => fs.writeFile(file, rendered.canvas.toBuffer('image/jpeg', 90)));
         images.push({ path: filename, originalname: `page-${String(number).padStart(3, '0')}.jpg` });
       } finally { document.canvasFactory.destroy(rendered); }
       page.cleanup();

@@ -1,5 +1,5 @@
 const ExcelJS = require('exceljs');
-const { outputPath } = require('./output');
+const { writeOutput } = require('./output');
 const { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems } = require('./pdf-layout');
 
 const uniquePositions = values => values.sort((a, b) => a - b).filter((v, i, all) => i === 0 || v - all[i - 1] > 1);
@@ -22,9 +22,10 @@ function styleText(cell, items) {
   cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
 }
 
-function addImage(workbook, sheet, buffer, row, width, height) {
+function addImage(workbook, sheet, buffer, row, width, height, endColumn) {
   const imageId = workbook.addImage({ buffer, extension: 'png' });
-  sheet.addImage(imageId, { tl: { col: 0, row }, ext: { width: width * 96 / 72, height: height * 96 / 72 }, editAs: 'oneCell' });
+  const extent = endColumn ? { br: { col: endColumn, row: row + 1 } } : { ext: { width: width * 96 / 72, height: height * 96 / 72 } };
+  sheet.addImage(imageId, { tl: { col: 0, row }, ...extent, editAs: 'oneCell' });
 }
 
 exports.convertPdfToExcel = async (pdfPath) => {
@@ -49,7 +50,7 @@ exports.convertPdfToExcel = async (pdfPath) => {
           const offset = top > 1 ? 1 : 0;
           if (offset) {
             sheet.getRow(1).height = Math.min(top, 409);
-            addImage(workbook, sheet, cropPage(document, rendered, left, 0, width, top), 0, width, top);
+            addImage(workbook, sheet, cropPage(document, rendered, left, 0, width, top), 0, width, top, xs.length - 1);
           }
           ys.slice(0, -1).forEach((y, i) => { sheet.getRow(i + 1 + offset).height = Math.min(409, ys[i + 1] - y); });
           const occupied = new Set();
@@ -73,8 +74,9 @@ exports.convertPdfToExcel = async (pdfPath) => {
           if (footerHeight > 1) {
             const row = ys.length + offset;
             sheet.getRow(row).height = Math.min(409, footerHeight);
-            addImage(workbook, sheet, cropPage(document, rendered, left, bottom, width, footerHeight), row - 1, width, footerHeight);
+            addImage(workbook, sheet, cropPage(document, rendered, left, bottom, width, footerHeight), row - 1, width, footerHeight, xs.length - 1);
           }
+          sheet.pageSetup.printArea = `A1:${sheet.getColumn(xs.length - 1).letter}${sheet.rowCount}`;
         } else {
           const lines = groupLines(layout.items);
           const starts = uniquePositions(lines.filter(line => line.items.length > 1).flatMap(line => line.items.map(item => item.x)));
@@ -100,8 +102,6 @@ exports.convertPdfToExcel = async (pdfPath) => {
       } finally { document.canvasFactory.destroy(rendered); }
       page.cleanup();
     }
-    const filename = outputPath('xlsx');
-    await workbook.xlsx.writeFile(filename);
-    return filename;
+    return writeOutput('xlsx', filename => workbook.xlsx.writeFile(filename));
   } finally { await document.destroy(); }
 };

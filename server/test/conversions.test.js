@@ -15,7 +15,7 @@ let directory, server, base, pdf, singlePdf, workbook, baselineUploads, baseline
 const uploads = path.join(__dirname, '../uploads');
 const outputs = path.join(__dirname, '../outputs');
 
-function makePdf(pages) {
+function makePdf(pages, label = 'Report') {
   return new Promise((resolve, reject) => {
     const doc = new PDFKit({ autoFirstPage: false });
     const chunks = [];
@@ -24,7 +24,7 @@ function makePdf(pages) {
     doc.on('error', reject);
     for (let page = 1; page <= pages; page++) {
       doc.addPage({ size: [600, 420], margin: 20 });
-      doc.fillColor('black').font('Helvetica-Bold').fontSize(18).text(`Report page ${page}`, 30, 25);
+      doc.fillColor('black').font('Helvetica-Bold').fontSize(18).text(`${label} page ${page}`, 30, 25);
       const rows = [['Area', 'Quantity', 'Rate'], ['Attock', '6,267', '55.3%'], ['Zero', '0', '0.0%']];
       rows.forEach((row, r) => row.forEach((text, c) => {
         doc.rect(30 + c * 180, 80 + r * 30, 180, 30).fillAndStroke(r === 0 ? '#112233' : '#FFFFFF', '#000000');
@@ -64,6 +64,22 @@ async function convert(service, data, filename, multiple = false) {
   const buffer = Buffer.from(await response.arrayBuffer());
   assert.equal(response.status, 200, `${service}: ${buffer.toString().slice(0, 200)}`);
   assert.match(response.headers.get('access-control-expose-headers'), /Content-Disposition/i);
+  const expected = {
+    'pdf-to-excel': ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    'pdf-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    'pdf-to-ppt': ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    'excel-to-pdf': ['pdf', 'application/pdf'],
+    'excel-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    'excel-to-ppt': ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    'pdf-merger': ['pdf', 'application/pdf'],
+    'zip-maker': ['zip', 'application/zip'],
+  };
+  const [extension, mime] = expected[service] || (response.headers.get('content-type')?.includes('zip')
+    ? ['zip', 'application/zip'] : ['jpg', 'image/jpeg']);
+  assert.equal(response.headers.get('content-type'), mime, `${service}: Content-Type`);
+  assert.match(response.headers.get('content-disposition'), new RegExp(`\\.${extension}(?:"|;|$)`, 'i'), `${service}: download filename`);
+  assert.equal(buffer.subarray(0, extension === 'pdf' ? 5 : 2).toString(), extension === 'pdf' ? '%PDF-' :
+    extension === 'jpg' ? Buffer.from([0xff, 0xd8]).toString() : 'PK', `${service}: file signature`);
   return { buffer, response };
 }
 
@@ -148,10 +164,27 @@ test('Excel to PowerPoint retains all worksheets and formatted values', async ()
   assert.match(text, /55\.3%/); assert.match(text, /LAST SHEET MARKER/); assert.match(text, /false/);
 });
 
-test('PDF merger preserves all pages and input order', async () => {
-  const { buffer } = await convert('pdf-merger', [singlePdf, pdf], ['one.pdf', 'three.pdf'], true);
-  const doc = await PDFDocument.load(buffer);
-  assert.equal(doc.getPageCount(), 4);
+test('PDF merger combines three PDFs into one PDF and preserves all four pages in order', async () => {
+  const first = await makePdf(1, 'FIRST-FILE');
+  const middle = await makePdf(2, 'SECOND-FILE');
+  const last = await makePdf(1, 'THIRD-FILE');
+  const { buffer, response } = await convert('pdf-merger', [first, middle, last], ['one.pdf', 'two.pdf', 'three.pdf'], true);
+  assert.match(response.headers.get('content-disposition'), /merged\.pdf/i);
+  const merged = await PDFDocument.load(buffer);
+  assert.equal(merged.getPageCount(), 4);
+  const location = path.join(directory, 'merged-test.pdf');
+  await fs.writeFile(location, buffer);
+  const doc = await openPdf(location);
+  try {
+    const text = [];
+    for (let i = 1; i <= 4; i++) {
+      text.push((await (await doc.getPage(i)).getTextContent()).items.map(item => item.str).join(' '));
+    }
+    assert.match(text[0], /FIRST-FILE page 1/);
+    assert.match(text[1], /SECOND-FILE page 1/);
+    assert.match(text[2], /SECOND-FILE page 2/);
+    assert.match(text[3], /THIRD-FILE page 1/);
+  } finally { await doc.destroy(); }
 });
 
 test('ZIP output is complete and duplicate filenames do not overwrite files', async () => {

@@ -1,6 +1,6 @@
 const fs = require('node:fs/promises');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType } = require('docx');
-const { outputPath } = require('./output');
+const { writeOutput } = require('./output');
 const { readWorkbook, displayCell, color } = require('./workbook');
 
 exports.convertExcelToWord = async inputPath => {
@@ -25,7 +25,5 @@ exports.convertExcelToWord = async inputPath => {
     }));
     return { children };
   });
-  const filename = outputPath('docx');
-  await fs.writeFile(filename, await Packer.toBuffer(new Document({ sections })));
-  return filename;
+  return writeOutput('docx', async filename => fs.writeFile(filename, await Packer.toBuffer(new Document({ sections }))));
 };

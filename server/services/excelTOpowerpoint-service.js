@@ -1,5 +1,5 @@
 const PPTX = require('pptxgenjs');
-const { outputPath } = require('./output');
+const { writeOutput } = require('./output');
 const { readWorkbook, displayCell, color } = require('./workbook');
 
 exports.convertExcelToPpt = async inputPath => {
@@ -21,7 +21,5 @@ exports.convertExcelToPpt = async inputPath => {
     slide.addTable(rows, { x: 0.4, y: 0.7, w: 12.5, fontSize: 10, margin: 0.05,
       border: { type: 'solid', color: 'AAAAAA', pt: 0.5 }, autoPage: true, autoPageSlideStartY: 0.4 });
   }
-  const filename = outputPath('pptx');
-  await pptx.writeFile({ fileName: filename });
-  return filename;
+  return writeOutput('pptx', filename => pptx.writeFile({ fileName: filename }));
 };
