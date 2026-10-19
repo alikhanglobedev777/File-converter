@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   FiArrowRight, FiArrowUpRight, FiCheck, FiChevronRight,
-  FiDownload, FiFileText, FiGrid, FiLayers, FiUploadCloud, FiZap,
+  FiDownload, FiFileText, FiGrid, FiLayers, FiUploadCloud, FiZap, FiSearch, FiX,
 } from "react-icons/fi";
 import { services } from "../data/services";
 import ToolCard from "./ToolCard";
@@ -11,7 +11,12 @@ const filters = ["All tools", "PDF tools", "Excel tools", "File utilities"];
 
 export default function Home() {
   const [filter, setFilter] = useState("All tools");
-  const visibleServices = filter === "All tools" ? services : services.filter((tool) => tool.category === filter);
+  const [search, setSearch] = useState('');
+  const query = search.trim().toLowerCase();
+  const visibleServices = services.filter(tool =>
+    (filter === 'All tools' || tool.category === filter) &&
+    (!query || [tool.title, tool.from, tool.to, tool.description, tool.category].some(value => value.toLowerCase().includes(query)))
+  );
 
   return (
     <div className="page dashboard-page">
@@ -37,7 +42,7 @@ export default function Home() {
       </section>
 
       <div className="overview-strip" aria-label="Platform benefits">
-        <div className="overview-strip__item"><span className="overview-strip__icon"><FiGrid /></span><div><strong>9 helpful tools</strong><small>All your essentials</small></div></div>
+        <div className="overview-strip__item"><span className="overview-strip__icon"><FiGrid /></span><div><strong>{services.length} helpful tools</strong><small>All your essentials</small></div></div>
         <div className="overview-strip__item"><span className="overview-strip__icon"><FiZap /></span><div><strong>Simple workflow</strong><small>Upload, convert, download</small></div></div>
         <div className="overview-strip__item"><span className="overview-strip__icon"><FiLayers /></span><div><strong>One workspace</strong><small>Conversions and file utilities</small></div></div>
       </div>
@@ -47,10 +52,15 @@ export default function Home() {
           <div><span className="eyebrow">YOUR TOOLKIT</span><h2>What do you want to do?</h2><p>Pick a tool to get started. Your next file is just a few clicks away.</p></div>
           <span className="section-heading__count">{services.length} tools available <FiChevronRight aria-hidden="true" /></span>
         </div>
+        <div className="tool-search">
+          <FiSearch aria-hidden="true" />
+          <input type="search" aria-label="Search converter tools" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search for PDF, Excel, images, split, compress…" />
+          {search && <button type="button" onClick={() => setSearch('')} aria-label="Clear search"><FiX aria-hidden="true" /></button>}
+        </div>
         <div className="tool-filters" role="group" aria-label="Filter tools">
           {filters.map((name) => <button key={name} type="button" className={`tool-filters__button ${filter === name ? "tool-filters__button--active" : ""}`} aria-pressed={filter === name} onClick={() => setFilter(name)}>{name}</button>)}
         </div>
-        <div className="tool-grid">{visibleServices.map((tool) => <ToolCard key={tool.id} tool={tool} />)}</div>
+        {visibleServices.length ? <div className="tool-grid">{visibleServices.map(tool => <ToolCard key={tool.id} tool={tool} />)}</div> : <div className="empty-tools"><strong>No matching tools</strong><p>Try a different keyword or choose “All tools”.</p><button type="button" className="button button--primary" onClick={() => { setFilter('All tools'); setSearch(''); }}>Show all tools</button></div>}
       </section>
 
       <section className="steps-section" id="how-it-works">

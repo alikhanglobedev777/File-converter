@@ -26,6 +26,10 @@ test('each converter validates correct extensions and output types', async () =>
     ['excel-to-pdf', 'pdf', pdf, 'application/pdf'],
     ['excel-to-word', 'docx', zip, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     ['excel-to-ppt', 'pptx', zip, 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    ['pdf-compressor', 'pdf', pdf, 'application/pdf'],
+    ['pdf-splitter', 'pdf', pdf, 'application/pdf'],
+    ['image-to-pdf', 'pdf', pdf, 'application/pdf'],
+    ['pdf-organizer', 'pdf', pdf, 'application/pdf'],
     ['pdf-to-jpg', 'jpg', jpg, 'image/jpeg'],
     ['zip-maker', 'zip', zip, 'application/zip'],
   ];
