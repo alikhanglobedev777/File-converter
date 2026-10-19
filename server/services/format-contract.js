@@ -11,6 +11,10 @@ const formats = Object.freeze({
   'excel-to-pdf': ['pdf', 'application/pdf'],
   'excel-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   'excel-to-ppt': ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+  'pdf-compressor': ['pdf', 'application/pdf'],
+  'pdf-splitter': ['pdf', 'application/pdf'],
+  'image-to-pdf': ['pdf', 'application/pdf'],
+  'pdf-organizer': ['pdf', 'application/pdf'],
   'pdf-merger': ['pdf', 'application/pdf'],
   'zip-maker': ['zip', 'application/zip'],
 });

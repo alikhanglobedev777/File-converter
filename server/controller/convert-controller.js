@@ -9,6 +9,12 @@ const { convertExcelToPpt } = require('../services/excelTOpowerpoint-service');
 const { mergePdfs, safeUnlink } = require('../services/pdf-merger-service');
 const { makeZip } = require('../services/zip-service');
 const { verifyOutputFormat, OutputFormatError } = require('../services/format-contract');
+const { splitPdf } = require('../services/pdf-splitter-service');
+const { convertImagesToPdf } = require('../services/imageToPdf-service');
+const { organizePdf } = require('../services/pdf-organizer-service');
+const { PageSelectionError } = require('../services/page-selection');
+const { compressPdf, CompressionOptionsError } = require('../services/pdf-compressor-service');
+const { ExportOptionsError } = require('../services/pdf-export-options');
 
 function conversion(service, convert, { multiple = false, minimum = 1, name } = {}) {
   return async (req, res) => {
@@ -16,38 +22,47 @@ function conversion(service, convert, { multiple = false, minimum = 1, name } = 
     let output;
     try {
       if (files.length < minimum) return res.status(400).json({ error: `Upload at least ${minimum} file(s).` });
-      output = await convert(multiple ? files : files[0].path, req);
+      output = await convert(multiple ? files : files[0].path, req, files);
       const { extension, contentType } = await verifyOutputFormat(service, output);
-      // Never infer the attachment's format solely from the original upload name.
-      const base = name || path.parse(path.basename(files[0].originalname.replace(/\\/g, '/'))).name;
+      const base = name || path.parse(path.basename((files[0].originalname || 'converted').replace(/\\/g, '/'))).name;
       const pageSuffix = service === 'pdf-to-jpg' && Number(req.body.page || 1) > 1
         ? `-page-${String(req.body.page).padStart(3, '0')}` : '';
       const downloadName = `${base}${pageSuffix}.${extension}`;
       res.set({ 'Content-Type': contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
-      await new Promise(resolve => res.download(output, downloadName, error => {
+      await new Promise((resolve) => res.download(output, downloadName, (error) => {
         if (error && !res.headersSent && !res.destroyed) res.status(500).json({ error: 'Download failed.' });
         resolve();
       }));
     } catch (error) {
       console.error('Conversion failed:', error.name);
-      if (!res.headersSent && !res.destroyed) res.status(error instanceof OutputFormatError ? 500 : error instanceof PdfPageSelectionError ? 400 : 422).json({
-        error: error instanceof OutputFormatError
-          ? 'The server produced an invalid output file. No file was downloaded. Please retry or check the server logs.'
-          : error instanceof PdfPageSelectionError ? error.message
-          : 'Conversion failed. Check that the file is valid, supported, and not password-protected.',
-      });
+      let status = 422;
+      let message = 'Conversion failed. Check that the file is valid, supported, and not password-protected.';
+      if (error instanceof OutputFormatError) {
+        status = 500;
+        message = 'The server produced an invalid output file. No file was downloaded. Please retry or check the server logs.';
+      } else if (error instanceof PdfPageSelectionError || error instanceof PageSelectionError || error instanceof CompressionOptionsError || error instanceof ExportOptionsError) {
+        status = 400;
+        message = error.message;
+      }
+      if (!res.headersSent && !res.destroyed) res.status(status).json({ error: message });
     } finally {
-      files.forEach(file => safeUnlink(file.path));
+      files.forEach((file) => safeUnlink(file.path));
       safeUnlink(output);
     }
   };
 }
+
 exports.pdfToExcel = conversion('pdf-to-excel', convertPdfToExcel);
 exports.pdfToWord = conversion('pdf-to-word', convertPdfToWord);
-exports.pdfToJpg = conversion('pdf-to-jpg', (inputPath, req) => convertPdfToJpg(inputPath, req.body.page ?? '1'));
+exports.pdfToJpg = conversion('pdf-to-jpg', (inputPath, req) => convertPdfToJpg(inputPath, req.body.page ?? '1', { scale: req.body.scale ?? '2', quality: req.body.quality ?? '90' }));
 exports.pdfToPpt = conversion('pdf-to-ppt', convertPdfToPpt);
-exports.excelToPdf = conversion('excel-to-pdf', convertExcelToPdf);
+exports.excelToPdf = conversion('excel-to-pdf', (inputPath, req) => convertExcelToPdf(inputPath, { paperSize: req.body.paperSize ?? 'A4', orientation: req.body.orientation ?? 'auto' }));
 exports.excelToWord = conversion('excel-to-word', convertExcelToWord);
 exports.excelToPpt = conversion('excel-to-ppt', convertExcelToPpt);
-exports.pdfMerger = conversion('pdf-merger', files => mergePdfs(files.map(file => file.path)), { multiple: true, minimum: 2, name: 'merged' });
+exports.pdfMerger = conversion('pdf-merger', (files) => mergePdfs(files.map((file) => file.path)), { multiple: true, minimum: 2, name: 'merged' });
 exports.zipMaker = conversion('zip-maker', makeZip, { multiple: true, name: 'archive' });
+exports.pdfSplitter = conversion('pdf-splitter', (inputPath, req) => splitPdf(inputPath, req.body.pages), { name: 'split' });
+exports.imageToPdf = conversion('image-to-pdf', (files) => convertImagesToPdf(files), { multiple: true, minimum: 1, name: 'images' });
+exports.pdfOrganizer = conversion('pdf-organizer', (inputPath, req) => organizePdf(inputPath, req.body.pages, req.body.rotate), { name: 'organized' });
+
+exports.pdfCompressor = conversion('pdf-compressor', (inputPath, req) => compressPdf(inputPath, req.body.level || 'lossless'), { name: 'compressed' });

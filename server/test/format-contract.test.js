@@ -28,7 +28,7 @@ test('PDF merger only accepts a genuine PDF download', async () => {
   });
 });
 
-test('all nine services have the required binary formats and MIME types', async () => {
+test('all thirteen services have the required binary formats and MIME types', async () => {
   const cases = [
     ['pdf-to-excel', 'xlsx', emptyZip, 'spreadsheetml.sheet'],
     ['pdf-to-word', 'docx', emptyZip, 'wordprocessingml.document'],
@@ -36,6 +36,10 @@ test('all nine services have the required binary formats and MIME types', async 
     ['excel-to-pdf', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
     ['excel-to-word', 'docx', emptyZip, 'wordprocessingml.document'],
     ['excel-to-ppt', 'pptx', emptyZip, 'presentationml.presentation'],
+    ['pdf-compressor', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
+    ['pdf-splitter', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
+    ['image-to-pdf', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
+    ['pdf-organizer', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
     ['pdf-merger', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
     ['pdf-to-jpg', 'jpg', Buffer.from([0xff, 0xd8, 0xff, 0xd9]), 'image/jpeg'],
     ['zip-maker', 'zip', emptyZip, 'application/zip'],

@@ -8,8 +8,8 @@ import { getService, serviceGroups, services } from "../src/data/services.js";
 const project = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("every conversion endpoint is represented by one distinct tool", () => {
-  assert.equal(services.length, 9);
-  assert.equal(new Set(services.map((tool) => tool.id)).size, 9);
+  assert.equal(services.length, 13);
+  assert.equal(new Set(services.map((tool) => tool.id)).size, 13);
   for (const tool of services) {
     assert.match(tool.id, /^[a-z]+(?:-[a-z]+)*$/);
     assert.equal(getService(tool.id), tool);
@@ -38,6 +38,7 @@ test("upload metadata agrees with the backend's per-route limits", () => {
   }
   assert.deepEqual([getService("pdf-merger").minFiles, getService("pdf-merger").maxFiles], [2, 10]);
   assert.deepEqual([getService("zip-maker").minFiles, getService("zip-maker").maxFiles], [1, 20]);
+  assert.deepEqual([getService("image-to-pdf").minFiles, getService("image-to-pdf").maxFiles], [1, 30]);
 });
 
 test("the matching stylesheet exists for the converter's case-sensitive import", () => {
