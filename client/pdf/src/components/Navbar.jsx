@@ -126,7 +126,7 @@ export default function Navbar({ children }) {
             </div>
           </div>
           <div className="topbar__right">
-            <span className="topbar__status"><span /> 9 tools to explore</span>
+            <span className="topbar__status"><span /> {services.length} tools to explore</span>
             {user ? (
               <div className="topbar__account">
                 <span className="topbar__avatar" aria-hidden="true">{(user.name || "U").charAt(0).toUpperCase()}</span>
