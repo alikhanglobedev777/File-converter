@@ -12,6 +12,7 @@ import { requestConversion } from "../utils/conversionRequest";
 import "./Fileconverter.css";
 
 const PdfPreview = lazy(() => import("./PdfPreview.jsx"));
+const VisualPdfOrganizer = lazy(() => import("./VisualPdfOrganizer.jsx"));
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const BATCH_MAX_FILES = 5;
@@ -39,6 +40,8 @@ export default function FileConverter({ service }) {
   const [splitPages, setSplitPages] = useState("1-2");
   const [organizerPages, setOrganizerPages] = useState("1");
   const [organizerRotate, setOrganizerRotate] = useState("");
+  const [organizerEditorReady, setOrganizerEditorReady] = useState(false);
+  const [organizerEditorMode, setOrganizerEditorMode] = useState("loading");
   const [compressionLevel, setCompressionLevel] = useState('lossless');
   const [paperSize, setPaperSize] = useState('A4');
   const [orientation, setOrientation] = useState('auto');
@@ -51,7 +54,8 @@ export default function FileConverter({ service }) {
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const multi = Boolean(tool.multiple);
-  const acceptsBatch = !multi;
+  // Each PDF needs its own page plan; do not reuse the first document's plan across a batch.
+  const acceptsBatch = !multi && service !== "pdf-organizer";
   const pickingMultiple = multi || batchMode;
 
   useEffect(() => {
@@ -94,6 +98,8 @@ export default function FileConverter({ service }) {
     if (service === "pdf-organizer") {
       setOrganizerPages("1");
       setOrganizerRotate("");
+      setOrganizerEditorReady(false);
+      setOrganizerEditorMode("loading");
     }
     setFeedback(null);
     setResults([]);
@@ -177,6 +183,10 @@ export default function FileConverter({ service }) {
     if (loading) return;
     if (files.length < (tool.minFiles || 1)) {
       setFeedback({ kind: 'error', text: `Select at least ${tool.minFiles || 1} ${multi ? 'files' : 'file'} to continue.` });
+      return;
+    }
+    if (service === "pdf-organizer" && !organizerEditorReady) {
+      setFeedback({ kind: "error", text: "Please wait until the PDF editor has finished loading." });
       return;
     }
     const validationError = validateToolSpecificInput();
@@ -350,9 +360,20 @@ export default function FileConverter({ service }) {
               </div>
             )}
 
-            {service === "pdf-organizer" && (
+            {service === "pdf-organizer" && files.length > 0 && (
+              <Suspense fallback={<p role="status">Loading visual PDF editor…</p>}>
+                <VisualPdfOrganizer
+                  file={files[0]}
+                  disabled={loading}
+                  onPlanChange={({ pages, rotate }) => { setOrganizerPages(pages); setOrganizerRotate(rotate); }}
+                  onReadyChange={(ready, mode) => { setOrganizerEditorReady(ready); setOrganizerEditorMode(mode); }}
+                />
+              </Suspense>
+            )}
+
+            {service === "pdf-organizer" && organizerEditorMode === "manual" && files.length > 0 && (
               <div className="jpg-page-picker jpg-page-picker--stacked">
-                <label htmlFor="organizer-pages">Page order</label>
+                <label htmlFor="organizer-pages">Page order (manual fallback)</label>
                 <input
                   id="organizer-pages"
                   type="text"
@@ -362,7 +383,7 @@ export default function FileConverter({ service }) {
                   disabled={loading}
                   required
                 />
-                <label htmlFor="organizer-rotate">Rotate pages (optional)</label>
+                <label htmlFor="organizer-rotate">Rotate original pages (optional)</label>
                 <input
                   id="organizer-rotate"
                   type="text"
@@ -371,7 +392,7 @@ export default function FileConverter({ service }) {
                   placeholder="Example: 2:90,5:180"
                   disabled={loading}
                 />
-                <p>Use <strong>Page order</strong> to keep, delete, and reorder pages. Use <strong>Rotate pages</strong> for source pages you want turned 90°, 180°, or 270°.</p>
+                <p>Use page order to keep or remove pages; use rotation rules for specific source pages.</p>
               </div>
             )}
 
@@ -396,7 +417,7 @@ export default function FileConverter({ service }) {
               </div>
             )}
 
-            {files.length > 0 && (/\.pdf$/i.test(files[0].name) || previewUrl) && (
+            {files.length > 0 && service !== "pdf-organizer" && (/\.pdf$/i.test(files[0].name) || previewUrl) && (
               <div className="preview-card">
                 <div className="preview-card__heading"><strong>File preview</strong><small>{files[0].name} · {formatBytes(files[0].size)}</small></div>
                 {/\.pdf$/i.test(files[0].name) ? (
