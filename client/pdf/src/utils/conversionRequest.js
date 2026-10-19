@@ -1,6 +1,6 @@
 // XMLHttpRequest exposes real upload and download byte progress where supported.
 // Never display an invented conversion percentage: the server doesn't report one.
-export function requestConversion(url, formData, { signal, onProgress = () => {}, xhrFactory = () => new XMLHttpRequest() } = {}) {
+export function requestConversion(url, formData, { signal, token, onProgress = () => {}, xhrFactory = () => new XMLHttpRequest() } = {}) {
   return new Promise((resolve, reject) => {
     const xhr = xhrFactory();
     let settled = false;
@@ -15,6 +15,7 @@ export function requestConversion(url, formData, { signal, onProgress = () => {}
     if (signal?.aborted) return finish(new Error('Conversion cancelled.'));
     signal?.addEventListener('abort', abort, { once: true });
     xhr.open('POST', url);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.responseType = 'blob';
     xhr.timeout = 180_000;
     xhr.upload.onprogress = event => onProgress({ stage: 'Uploading', percent: event.lengthComputable && event.total ? Math.round(event.loaded * 100 / event.total) : null });

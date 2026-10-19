@@ -19,3 +19,20 @@ exports.protect = async (req, res, next) => {
   }
   if (!token) res.status(401).json({ error: "Not authorized, no token" });
 };
+
+// Conversions remain available to guests. If a token is supplied, it must be
+// valid and linked to a current account before any history can be recorded.
+exports.optionalProtect = async (req, res, next) => {
+  const header = req.headers.authorization;
+  if (!header) return next();
+  const match = /^Bearer ([^\s]+)$/i.exec(header);
+  if (!match) return res.status(401).json({ error: "Session expired. Please log in again." });
+  try {
+    const decoded = jwt.verify(match[1], process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.id).select("-password");
+    if (!req.user) return res.status(401).json({ error: "Session expired. Please log in again." });
+    return next();
+  } catch {
+    return res.status(401).json({ error: "Session expired. Please log in again." });
+  }
+};

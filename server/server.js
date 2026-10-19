@@ -11,6 +11,7 @@ const { connectDatabase } = require("./config/database");
 // Routes
 const convertRoutes = require("./routes/convert-route");
 const authRoutes = require("./routes/auth-route");
+const historyRoutes = require("./routes/history-route");
 
 const app = express();
 
@@ -18,7 +19,7 @@ const app = express();
 const allowedOrigin = process.env.CORS_ORIGIN?.trim();
 app.use(cors({
   origin: allowedOrigin ? [allowedOrigin] : true,
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   exposedHeaders: ['Content-Disposition'],
 }));
 app.use((req, res, next) => {
@@ -46,6 +47,7 @@ ensureFolderExists(path.join(__dirname, "outputs"));
 // ===== Routes =====
 app.use("/api/convert", convertRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/history", historyRoutes);
 
 // ===== Test Route =====
 app.get("/test", (req, res) => res.send("Server is working"));
