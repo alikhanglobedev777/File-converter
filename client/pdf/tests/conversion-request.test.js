@@ -27,3 +27,17 @@ test('HTTP 429 returns a user-friendly explanation', async () => {
   const xhrFactory = () => ({ ...fakeXHR(), send() { this.status = 429; this.response = new Blob([JSON.stringify({ error: 'Wait before trying again.' })]); this.onload(); } });
   await assert.rejects(requestConversion('/api/convert/pdf-merger', {}, { xhrFactory }), /Wait before trying again/);
 });
+
+test('logged-in conversions send their Bearer token without affecting guest uploads', async () => {
+  let used;
+  const xhrFactory = () => ({
+    ...fakeXHR(),
+    headers: {},
+    setRequestHeader(name, value) { this.headers[name] = value; },
+    send(form) { used = this; this.form = form; this.onload(); },
+  });
+  await requestConversion('/api/convert/pdf-to-word', {}, { token: 'test-token', xhrFactory });
+  assert.equal(used.headers.Authorization, 'Bearer test-token');
+  await requestConversion('/api/convert/pdf-to-word', {}, { xhrFactory });
+  assert.equal(used.headers.Authorization, undefined);
+});

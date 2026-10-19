@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   FiArrowRight, FiChevronRight, FiGrid, FiHome, FiLogOut,
-  FiMenu, FiShield, FiX,
+  FiMenu, FiShield, FiX, FiClock,
 } from "react-icons/fi";
 import { AuthContext } from "../context/AuthContext";
 import { getService, serviceGroups, services } from "../data/services";
@@ -82,6 +82,7 @@ export default function Navbar({ children }) {
             <NavLink to="/" end onClick={closeMenu} className={({ isActive }) => `sidebar__item ${isActive ? "sidebar__item--active" : ""}`}>
               <FiHome aria-hidden="true" /> <span>Overview</span><FiChevronRight className="sidebar__chevron" aria-hidden="true" />
             </NavLink>
+            {user && <NavLink to="/history" onClick={closeMenu} className={({ isActive }) => `sidebar__item ${isActive ? "sidebar__item--active" : ""}`}><FiClock aria-hidden="true" /><span>My History</span><FiChevronRight className="sidebar__chevron" aria-hidden="true" /></NavLink>}
             <a href="/#tools" onClick={closeMenu} className="sidebar__item">
               <FiGrid aria-hidden="true" /> <span>All tools</span><span className="sidebar__count">{services.length}</span>
             </a>
@@ -122,7 +123,7 @@ export default function Navbar({ children }) {
             <div className="topbar__crumbs">
               <Link to="/">Workspace</Link>
               <FiChevronRight aria-hidden="true" />
-              <span>{activeTool?.title || (location.pathname === "/" ? "Overview" : location.pathname === "/login" ? "Log in" : location.pathname === "/signup" ? "Sign up" : "Page not found")}</span>
+              <span>{activeTool?.title || (location.pathname === "/" ? "Overview" : location.pathname === "/login" ? "Log in" : location.pathname === "/signup" ? "Sign up" : location.pathname === "/history" ? "My History" : "Page not found")}</span>
             </div>
           </div>
           <div className="topbar__right">

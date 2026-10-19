@@ -1,0 +1,39 @@
+.history-page { width: 100%; max-width: 1160px; margin: 0 auto; padding: 32px 0 60px; color: var(--ink); }
+.history-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 25px; }
+.history-heading h1 { font-size: clamp(28px, 4vw, 44px); letter-spacing: -.04em; margin: 9px 0; }
+.history-heading p { max-width: 650px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.history-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 13px; min-height: 44px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.history-button:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+.history-button:disabled, .history-delete:disabled { opacity: .5; cursor: not-allowed; }
+.history-button--danger { color: #b42318; }
+.history-button--danger:hover:not(:disabled) { color: #b42318; border-color: #b42318; }
+.history-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; margin-bottom: 22px; }
+.history-stats > div { display: flex; flex-direction: column; gap: 7px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.history-stats span { font-size: 11px; color: var(--muted); font-weight: 700; }
+.history-stats strong { font-size: 27px; font-weight: 800; }
+.history-panel { background: #fff; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.history-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 19px 20px; border-bottom: 1px solid var(--line); }
+.history-panel__heading h2 { margin: 0 0 5px; font-size: 17px; }
+.history-panel__heading p { margin: 0; color: var(--muted); font-size: 11px; }
+.history-record { display: flex; align-items: center; gap: 13px; padding: 15px 19px; border-bottom: 1px solid var(--line); }
+.history-record:last-child { border-bottom: 0; }
+.history-record__icon { flex-shrink: 0; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 11px; color: var(--blue); }
+.history-record__main { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 5px; }
+.history-record__main strong { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.history-record__main span { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.history-status { display: inline-flex; gap: 5px; align-items: center; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.history-status--success { color: #15803d; }
+.history-status--failed { color: #b42318; }
+.history-delete { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #b42318; }
+.history-delete:hover:not(:disabled) { border-color: #b42318; }
+.history-empty { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 48px 20px; }
+.history-empty > svg { width: 42px; height: 42px; color: var(--blue); }
+.history-empty h2, .history-empty h3 { margin: 0; }
+.history-empty p { margin: 0 0 4px; color: var(--muted); font-size: 12px; }
+.history-message { padding: 26px; text-align: center; color: var(--muted); }
+.history-error { padding: 14px 18px; margin-bottom: 15px; background: #fff4f4; border: 1px solid #f9cece; border-radius: 10px; color: #b42318; font-size: 12px; }
+.history-link { text-decoration: underline; font-weight: 700; color: inherit; background: transparent; border: none; }
+.history-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.history-privacy { display: flex; align-items: flex-start; gap: 8px; margin-top: 17px; font-size: 11px; color: var(--muted); line-height: 1.7; }
+.history-privacy svg { flex-shrink: 0; margin-top: 2px; }
+@media (max-width: 650px) { .history-page { padding: 22px 0 45px; } .history-heading { align-items: flex-start; flex-direction: column; } .history-stats { gap: 8px; } .history-stats > div { padding: 13px 11px; } .history-stats strong { font-size: 22px; } .history-record { padding: 13px 11px; gap: 8px; } .history-record__icon { width: 33px; height: 33px; } .history-record__main span { font-size: 10px; } .history-status { font-size: 0; } .history-status svg { width: 17px; height: 17px; } .history-panel__heading { padding: 15px 12px; } }
