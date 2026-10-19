@@ -22,6 +22,7 @@ export default function FileConverter({ service }) {
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [jpgPage, setJpgPage] = useState("1");
   const fileInputRef = useRef(null);
   const multi = Boolean(tool.multiple);
   const otherTools = services.filter((item) => item.id !== service && item.category === tool.category).slice(0, 3);
@@ -48,6 +49,7 @@ export default function FileConverter({ service }) {
       return;
     }
     setFiles(next);
+    if (service === "pdf-to-jpg") setJpgPage("1");
     setFeedback(null);
   };
 
@@ -93,8 +95,13 @@ export default function FileConverter({ service }) {
       return;
     }
 
+    if (service === "pdf-to-jpg" && (!/^[1-9]\d*$/.test(jpgPage) || !Number.isSafeInteger(Number(jpgPage)))) {
+      setFeedback({ kind: "error", text: "Enter a valid page number (1 or higher)." });
+      return;
+    }
     const formData = new FormData();
     files.forEach((item) => formData.append(multi ? "files" : "file", item));
+    if (service === "pdf-to-jpg") formData.append("page", jpgPage);
 
     setLoading(true);
     setFeedback({ kind: "info", text: "Your file is being processed. Please keep this tab open." });
@@ -106,7 +113,7 @@ export default function FileConverter({ service }) {
       }
 
       const blob = await response.blob();
-      // Do not let an unexpected ZIP/JSON response masquerade as merged.pdf.
+      // Reject unexpected ZIP/JSON responses instead of saving them as the requested format.
       const { filename } = await validateDownload(service, response, blob, files[0]?.name);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -119,8 +126,10 @@ export default function FileConverter({ service }) {
       // download manager; revoking it immediately can interrupt some browsers.
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 
-      setFeedback({ kind: "success", text: `Done! Your ${filename} download should begin automatically.` });
-      setFiles([]);
+      setFeedback({ kind: "success", text: service === "pdf-to-jpg"
+        ? `Page ${jpgPage} saved as ${filename}. Choose another page number and convert again to get another JPG.`
+        : `Done! Your ${filename} download should begin automatically.` });
+      if (service !== "pdf-to-jpg") setFiles([]);
     } catch (error) {
       setFeedback({ kind: "error", text: error.message || "Something went wrong. Try again." });
       // Keep the selection for retry; a failed request shouldn't make people reselect files.
@@ -178,6 +187,24 @@ export default function FileConverter({ service }) {
             </div>
 
             <div className="upload-requirements"><span><FiInfo aria-hidden="true" /> {tool.inputLabel}</span><span>50 MB max per file</span>{multi && <span>Up to {tool.maxFiles} files</span>}</div>
+
+            {service === "pdf-to-jpg" && (
+              <div className="jpg-page-picker">
+                <label htmlFor="jpg-page-number">Page number to export as JPG</label>
+                <input
+                  id="jpg-page-number"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  value={jpgPage}
+                  onChange={(event) => { setJpgPage(event.target.value); setFeedback(null); }}
+                  disabled={loading}
+                  required
+                />
+                <p>One JPG is downloaded per conversion. For multi-page PDFs, enter the page you want (starting at 1). Change the number and convert again for another page.</p>
+              </div>
+            )}
 
             {files.length > 0 && (
               <div className="file-selection">

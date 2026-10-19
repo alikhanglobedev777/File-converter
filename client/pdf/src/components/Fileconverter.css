@@ -145,3 +145,10 @@
   .file-selection__details { flex-basis: calc(100% - 44px); }
   .file-selection__order { margin-left: auto; }
 }
+
+/* PDF-to-JPG exports one selected page per download on every screen size. */
+.jpg-page-picker { display: grid; gap: 9px; min-width: 0; margin: 0 0 22px; padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.jpg-page-picker label { color: var(--ink); font-size: 12px; font-weight: 800; }
+.jpg-page-picker input { box-sizing: border-box; display: block; width: min(100%, 180px); min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); font: inherit; font-size: 14px; }
+.jpg-page-picker input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.jpg-page-picker p { color: var(--muted); font-size: 11px; line-height: 1.7; margin: 0; }

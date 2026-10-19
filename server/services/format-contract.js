@@ -6,6 +6,7 @@ const path = require('node:path');
 const formats = Object.freeze({
   'pdf-to-excel': ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   'pdf-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  'pdf-to-jpg': ['jpg', 'image/jpeg'],
   'pdf-to-ppt': ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
   'excel-to-pdf': ['pdf', 'application/pdf'],
   'excel-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -37,9 +38,7 @@ function hasZipEndRecord(bytes) {
 
 async function verifyOutputFormat(service, filename) {
   const extension = path.extname(filename).slice(1).toLowerCase();
-  const [expectedExtension, contentType] = service === 'pdf-to-jpg'
-    ? (extension === 'zip' ? ['zip', 'application/zip'] : ['jpg', 'image/jpeg'])
-    : (formats[service] || []);
+  const [expectedExtension, contentType] = formats[service] || [];
   if (!expectedExtension || extension !== expectedExtension) {
     throw new OutputFormatError(`Unexpected output extension from ${service}`);
   }
@@ -53,6 +52,13 @@ async function verifyOutputFormat(service, filename) {
       : extension === 'jpg' ? magic[0] === 0xff && magic[1] === 0xd8 && magic[2] === 0xff
       : zipFormats.has(extension) && isZipHeader(magic);
     if (!valid) throw new OutputFormatError(`${service} returned content that is not ${extension.toUpperCase()}`);
+    if (extension === 'jpg') {
+      const end = Buffer.alloc(2);
+      await handle.read(end, 0, 2, stat.size - 2);
+      if (end[0] !== 0xff || end[1] !== 0xd9) {
+        throw new OutputFormatError('Generated JPG file is incomplete');
+      }
+    }
     if (zipFormats.has(extension)) {
       const tailSize = Math.min(stat.size, 65557);
       const tail = Buffer.alloc(tailSize);

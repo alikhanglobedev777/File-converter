@@ -38,7 +38,6 @@ test('all nine services have the required binary formats and MIME types', async 
     ['excel-to-ppt', 'pptx', emptyZip, 'presentationml.presentation'],
     ['pdf-merger', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
     ['pdf-to-jpg', 'jpg', Buffer.from([0xff, 0xd8, 0xff, 0xd9]), 'image/jpeg'],
-    ['pdf-to-jpg', 'zip', emptyZip, 'application/zip'],
     ['zip-maker', 'zip', emptyZip, 'application/zip'],
   ];
   for (const [service, extension, content, mime] of cases) {
@@ -48,6 +47,21 @@ test('all nine services have the required binary formats and MIME types', async 
       assert.ok(result.contentType.includes(mime), `${service}: ${result.contentType}`);
     });
   }
+});
+
+test('PDF-to-JPG does not permit ZIP archives or mislabeled ZIP bytes', async () => {
+  await tempFile('zip', emptyZip, async filename => {
+    await assert.rejects(verifyOutputFormat('pdf-to-jpg', filename), OutputFormatError);
+  });
+  await tempFile('jpg', emptyZip, async filename => {
+    await assert.rejects(verifyOutputFormat('pdf-to-jpg', filename), OutputFormatError);
+  });
+});
+
+test('truncated JPG is rejected', async () => {
+  await tempFile('jpg', Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x01]), async filename => {
+    await assert.rejects(verifyOutputFormat('pdf-to-jpg', filename), OutputFormatError);
+  });
 });
 
 test('truncated ZIP-based output is rejected', async () => {
