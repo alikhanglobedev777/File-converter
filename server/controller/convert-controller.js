@@ -15,6 +15,7 @@ const { organizePdf } = require('../services/pdf-organizer-service');
 const { PageSelectionError } = require('../services/page-selection');
 const { compressPdf, CompressionOptionsError } = require('../services/pdf-compressor-service');
 const { ExportOptionsError } = require('../services/pdf-export-options');
+const { recordConversion } = require('../services/conversion-history');
 
 function conversion(service, convert, { multiple = false, minimum = 1, name } = {}) {
   return async (req, res) => {
@@ -29,10 +30,13 @@ function conversion(service, convert, { multiple = false, minimum = 1, name } = 
         ? `-page-${String(req.body.page).padStart(3, '0')}` : '';
       const downloadName = `${base}${pageSuffix}.${extension}`;
       res.set({ 'Content-Type': contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
+      let downloadError = null;
       await new Promise((resolve) => res.download(output, downloadName, (error) => {
+        downloadError = error;
         if (error && !res.headersSent && !res.destroyed) res.status(500).json({ error: 'Download failed.' });
         resolve();
       }));
+      await recordConversion({ user: req.user, files, service, outputFormat: extension, status: downloadError ? 'failed' : 'success' });
     } catch (error) {
       console.error('Conversion failed:', error.name);
       let status = 422;
@@ -45,6 +49,7 @@ function conversion(service, convert, { multiple = false, minimum = 1, name } = 
         message = error.message;
       }
       if (!res.headersSent && !res.destroyed) res.status(status).json({ error: message });
+      await recordConversion({ user: req.user, files, service, status: 'failed' });
     } finally {
       files.forEach((file) => safeUnlink(file.path));
       safeUnlink(output);

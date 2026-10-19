@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useContext, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   FiAlertCircle, FiArrowRight, FiCheck, FiCheckCircle, FiChevronRight,
@@ -9,6 +9,7 @@ import ToolIcon from "./ToolIcon";
 import ToolCard from "./ToolCard";
 import { validateDownload } from "../utils/downloadFormat";
 import { requestConversion } from "../utils/conversionRequest";
+import { AuthContext } from "../context/AuthContext";
 import "./Fileconverter.css";
 
 const PdfPreview = lazy(() => import("./PdfPreview.jsx"));
@@ -32,6 +33,7 @@ const actionLabels = {
 
 export default function FileConverter({ service }) {
   const tool = getService(service);
+  const { user } = useContext(AuthContext);
   const [files, setFiles] = useState([]);
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -212,6 +214,7 @@ export default function FileConverter({ service }) {
       try {
         const { response, blob } = await requestConversion(`${API_BASE_URL}/api/convert/${service}`, formData, {
           signal: controller.signal,
+          token: user ? localStorage.getItem('token') : null,
           onProgress: update => setProgress({ ...update, current: index + 1, total: jobs.length }),
         });
         const { filename } = await validateDownload(service, response, blob, jobFiles[0]?.name);

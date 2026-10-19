@@ -5,6 +5,7 @@ const path = require("path");
 const { randomUUID } = require("node:crypto");
 const { safeUnlink } = require("../services/pdf-merger-service");
 const { buildConversionGuardFromEnv } = require('../middleware/conversion-guard');
+const { optionalProtect } = require('../middleware/authMiddleware');
 const {
   pdfToExcel,
   pdfToWord,
@@ -53,6 +54,7 @@ const upload = multer({
 });
 
 router.use(...buildConversionGuardFromEnv());
+router.use(optionalProtect);
 
 // Single-file conversion routes
 router.post('/pdf-to-excel', upload.single('file'), pdfToExcel);
