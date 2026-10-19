@@ -8,6 +8,10 @@ const { PDFDocument } = require('pdf-lib');
 const ExcelJS = require('exceljs');
 const JSZip = require('jszip');
 const sharp = require('sharp');
+// This integration suite exercises many routes from one loopback IP in one run.
+// Increase the limit only for this test process before the app creates its
+// rate-limiting middleware. Production keeps its configured/default limit.
+process.env.CONVERT_RATE_LIMIT = '250';
 const { app } = require('../server');
 const { openPdf, renderPage } = require('../services/pdf-layout');
 
@@ -35,6 +39,12 @@ function makePdf(pages, label = 'Report') {
   });
 }
 
+async function makeImage(width, height, color, label, format = 'png') {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="${color}"/><text x="24" y="56" font-size="32" font-family="Arial" fill="white">${label}</text></svg>`;
+  const image = sharp(Buffer.from(svg));
+  return format === 'jpg' ? image.jpeg().toBuffer() : image.png().toBuffer();
+}
+
 before(async () => {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), 'file-converter-test-'));
   pdf = await makePdf(3); singlePdf = await makePdf(1);
@@ -56,11 +66,17 @@ after(async () => {
   if (directory) await fs.rm(directory, { recursive: true, force: true });
 });
 
-async function convert(service, data, filename, multiple = false, page = null) {
+async function convert(service, data, filename, multiple = false, options = null) {
   const form = new FormData();
   if (multiple) data.forEach((buffer, i) => form.append('files', new Blob([buffer]), filename[i]));
   else form.append('file', new Blob([data]), filename);
-  if (page !== null) form.append('page', String(page));
+  if (options !== null && options !== undefined) {
+    if (typeof options === 'object' && !Array.isArray(options)) {
+      for (const [key, value] of Object.entries(options)) form.append(key, String(value));
+    } else {
+      form.append('page', String(options));
+    }
+  }
   const response = await fetch(`${base}/${service}`, { method: 'POST', body: form });
   const buffer = Buffer.from(await response.arrayBuffer());
   assert.equal(response.status, 200, `${service}: ${buffer.toString().slice(0, 200)}`);
@@ -73,6 +89,10 @@ async function convert(service, data, filename, multiple = false, page = null) {
     'excel-to-pdf': ['pdf', 'application/pdf'],
     'excel-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     'excel-to-ppt': ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    'pdf-compressor': ['pdf', 'application/pdf'],
+    'pdf-splitter': ['pdf', 'application/pdf'],
+    'image-to-pdf': ['pdf', 'application/pdf'],
+    'pdf-organizer': ['pdf', 'application/pdf'],
     'pdf-merger': ['pdf', 'application/pdf'],
     'zip-maker': ['zip', 'application/zip'],
   };
@@ -187,6 +207,89 @@ test('Excel to PowerPoint retains all worksheets and formatted values', async ()
   assert.match(text, /55\.3%/); assert.match(text, /LAST SHEET MARKER/); assert.match(text, /false/);
 });
 
+test('PDF compressor returns a valid PDF, preserves page count, and never grows a file', async () => {
+  for (const level of ['lossless', 'balanced', 'strong']) {
+    const { buffer, response } = await convert('pdf-compressor', pdf, 'report.pdf', false, { level });
+    assert.match(response.headers.get('content-disposition'), /compressed\.pdf/i);
+    assert.ok(buffer.length <= pdf.length, `${level}: output must not exceed original size`);
+    const result = await PDFDocument.load(buffer);
+    assert.equal(result.getPageCount(), 3, `${level}: all pages remain`);
+  }
+});
+
+test('PDF export settings support orientation and paper size', async () => {
+  const { buffer } = await convert('excel-to-pdf', workbook, 'book.xlsx', false, { paperSize: 'LETTER', orientation: 'landscape' });
+  const document = await PDFDocument.load(buffer);
+  const page = document.getPage(0);
+  const { width, height } = page.getSize();
+  assert.equal(Math.round(width), 792);
+  assert.equal(Math.round(height), 612);
+});
+
+test('invalid compression and export settings return safe 400 errors', async () => {
+  const cases = [
+    ['pdf-compressor', pdf, 'doc.pdf', { level: 'unsupported' }],
+    ['excel-to-pdf', workbook, 'doc.xlsx', { paperSize: 'A1' }],
+    ['pdf-to-jpg', pdf, 'doc.pdf', { quality: '1' }],
+  ];
+  for (const [service, source, filename, fields] of cases) {
+    const form = new FormData();
+    form.append('file', new Blob([source]), filename);
+    for (const [key, value] of Object.entries(fields)) form.append(key, value);
+    const response = await fetch(`${base}/${service}`, { method: 'POST', body: form });
+    assert.equal(response.status, 400, service);
+    assert.ok((await response.json()).error, service);
+  }
+});
+
+test('PDF splitter extracts the requested pages into one new PDF', async () => {
+  const { buffer, response } = await convert('pdf-splitter', pdf, 'report.pdf', false, { pages: '2-3' });
+  assert.match(response.headers.get('content-disposition'), /split\.pdf/i);
+  const split = await PDFDocument.load(buffer);
+  assert.equal(split.getPageCount(), 2);
+  const location = path.join(directory, 'split-test.pdf');
+  await fs.writeFile(location, buffer);
+  const doc = await openPdf(location);
+  try {
+    const text = [];
+    for (let i = 1; i <= 2; i++) text.push((await (await doc.getPage(i)).getTextContent()).items.map(item => item.str).join(' '));
+    assert.match(text[0], /Report page 2/);
+    assert.match(text[1], /Report page 3/);
+  } finally { await doc.destroy(); }
+});
+
+test('Images to PDF keeps the image order and creates one page per image', async () => {
+  const first = await makeImage(220, 160, '#1769e8', 'First', 'jpg');
+  const second = await makeImage(180, 200, '#111111', 'Second', 'png');
+  const { buffer, response } = await convert('image-to-pdf', [first, second], ['first.jpg', 'second.png'], true);
+  assert.match(response.headers.get('content-disposition'), /images\.pdf/i);
+  const doc = await PDFDocument.load(buffer);
+  assert.equal(doc.getPageCount(), 2);
+  const sizes = doc.getPages().map((page) => page.getSize());
+  assert.equal(Math.round(sizes[0].width), 220);
+  assert.equal(Math.round(sizes[0].height), 160);
+  assert.equal(Math.round(sizes[1].width), 180);
+  assert.equal(Math.round(sizes[1].height), 200);
+});
+
+test('PDF organizer reorders, removes and rotates pages', async () => {
+  const { buffer, response } = await convert('pdf-organizer', pdf, 'report.pdf', false, { pages: '3,1', rotate: '3:90' });
+  assert.match(response.headers.get('content-disposition'), /organized\.pdf/i);
+  const organized = await PDFDocument.load(buffer);
+  assert.equal(organized.getPageCount(), 2);
+  assert.equal(organized.getPage(0).getRotation().angle, 90);
+  assert.equal(organized.getPage(1).getRotation().angle, 0);
+  const location = path.join(directory, 'organized-test.pdf');
+  await fs.writeFile(location, buffer);
+  const doc = await openPdf(location);
+  try {
+    const firstText = (await (await doc.getPage(1)).getTextContent()).items.map(item => item.str).join(' ');
+    const secondText = (await (await doc.getPage(2)).getTextContent()).items.map(item => item.str).join(' ');
+    assert.match(firstText, /Report page 3/);
+    assert.match(secondText, /Report page 1/);
+  } finally { await doc.destroy(); }
+});
+
 test('PDF merger combines three PDFs into one PDF and preserves all four pages in order', async () => {
   const first = await makePdf(1, 'FIRST-FILE');
   const middle = await makePdf(2, 'SECOND-FILE');
@@ -258,7 +361,7 @@ test('twelve-page JPG page selection and PowerPoint exports retain page order', 
 });
 
 test('all endpoints reject missing files; invalid files and insufficient merge inputs are cleaned up', async () => {
-  for (const route of ['pdf-to-excel', 'pdf-to-word', 'pdf-to-jpg', 'pdf-to-ppt', 'excel-to-pdf', 'excel-to-word', 'excel-to-ppt', 'pdf-merger', 'zip-maker']) {
+  for (const route of ['pdf-to-excel', 'pdf-to-word', 'pdf-to-jpg', 'pdf-to-ppt', 'excel-to-pdf', 'excel-to-word', 'excel-to-ppt', 'pdf-splitter', 'image-to-pdf', 'pdf-organizer', 'pdf-compressor', 'pdf-merger', 'zip-maker']) {
     const response = await fetch(`${base}/${route}`, { method: 'POST', body: new FormData() });
     assert.equal(response.status, 400, route); await response.arrayBuffer();
   }
@@ -270,6 +373,10 @@ test('all endpoints reject missing files; invalid files and insufficient merge i
     ['excel-to-word', 'broken.xlsx', Buffer.from('bad excel'), 'file', 422],
     ['excel-to-pdf', 'broken.xlsx', Buffer.from('bad excel'), 'file', 422],
     ['excel-to-ppt', 'broken.xlsx', Buffer.from('bad excel'), 'file', 422],
+    ['pdf-compressor', 'broken.pdf', Buffer.from('bad pdf'), 'file', 422],
+    ['pdf-splitter', 'broken.pdf', Buffer.from('bad pdf'), 'file', 422],
+    ['pdf-organizer', 'broken.pdf', Buffer.from('bad pdf'), 'file', 422],
+    ['image-to-pdf', 'broken.txt', Buffer.from('text'), 'files', 400],
     ['pdf-to-excel', 'wrong.txt', Buffer.from('text'), 'file', 400],
     ['pdf-merger', 'one.pdf', singlePdf, 'files', 400],
   ]) {

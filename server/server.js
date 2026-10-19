@@ -15,8 +15,22 @@ const authRoutes = require("./routes/auth-route");
 const app = express();
 
 // ===== Middleware =====
-app.use(cors({ exposedHeaders: ["Content-Disposition"] }));
-app.use(express.json());
+const allowedOrigin = process.env.CORS_ORIGIN?.trim();
+app.use(cors({
+  origin: allowedOrigin ? [allowedOrigin] : true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  exposedHeaders: ['Content-Disposition'],
+}));
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Cross-Origin-Resource-Policy': 'same-site',
+  });
+  next();
+});
+app.use(express.json({ limit: '1mb' }));
 
 // ===== Ensure required folders exist =====
 const ensureFolderExists = (folderPath) => {

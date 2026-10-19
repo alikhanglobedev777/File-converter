@@ -187,3 +187,11 @@ h1, h2, h3, p { margin-top: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* Search tools without introducing tinted backgrounds or new brand colors. */
+.tool-search { display:flex; align-items:center; gap:10px; min-height:48px; border:1px solid var(--line); border-radius:12px; background:#fff; padding:0 13px; margin:0 0 16px; }
+.tool-search > svg { color:var(--blue); flex:none; }
+.tool-search input { min-width:0; width:100%; flex:1; font:inherit; font-size:13px; background:#fff; color:var(--ink); border:none; outline-offset:3px; }
+.tool-search button { display:grid; place-items:center; min-height:44px; min-width:44px; border:0; background:transparent; color:var(--ink); }
+.empty-tools { border:1px solid var(--line); border-radius:14px; padding:24px; background:#fff; color:var(--ink); }
+.empty-tools p { color:var(--muted); font-size:13px; }

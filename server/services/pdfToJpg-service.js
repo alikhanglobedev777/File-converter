@@ -1,6 +1,7 @@
 const fs = require('node:fs/promises');
 const { writeOutput } = require('./output');
 const { openPdf, renderPage } = require('./pdf-layout');
+const { imageExportOptions } = require('./pdf-export-options');
 
 class PdfPageSelectionError extends Error {
   constructor(message) { super(message); this.name = 'PdfPageSelectionError'; }
@@ -8,7 +9,8 @@ class PdfPageSelectionError extends Error {
 
 // A single HTTP download is a single JPG. Users choose the page explicitly;
 // a multi-page PDF must never turn into an unexpected ZIP archive.
-exports.convertPdfToJpg = async (inputPath, selectedPage = '1') => {
+exports.convertPdfToJpg = async (inputPath, selectedPage = '1', options = {}) => {
+  const { scale, quality } = imageExportOptions(options);
   if (typeof selectedPage !== 'string' || !/^[1-9]\d*$/.test(selectedPage) ||
       !Number.isSafeInteger(Number(selectedPage))) {
     throw new PdfPageSelectionError('Enter a valid PDF page number (1 or higher).');
@@ -21,10 +23,10 @@ exports.convertPdfToJpg = async (inputPath, selectedPage = '1') => {
     }
     const page = await document.getPage(pageNumber);
     try {
-      const rendered = await renderPage(document, page, 2);
+      const rendered = await renderPage(document, page, scale);
       try {
         return await writeOutput('jpg', filename =>
-          fs.writeFile(filename, rendered.canvas.toBuffer('image/jpeg', 90)));
+          fs.writeFile(filename, rendered.canvas.toBuffer('image/jpeg', quality)));
       } finally {
         document.canvasFactory.destroy(rendered);
       }

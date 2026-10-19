@@ -8,6 +8,10 @@ const formats = {
   "excel-to-pdf": ["pdf", "application/pdf"],
   "excel-to-word": ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
   "excel-to-ppt": ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+  "pdf-compressor": ["pdf", "application/pdf"],
+  "pdf-splitter": ["pdf", "application/pdf"],
+  "image-to-pdf": ["pdf", "application/pdf"],
+  "pdf-organizer": ["pdf", "application/pdf"],
   "pdf-merger": ["pdf", "application/pdf"],
   "zip-maker": ["zip", "application/zip"],
 };
@@ -68,9 +72,13 @@ export async function validateDownload(service, response, blob, originalFilename
   if (serverName && !serverName.toLowerCase().endsWith(`.${extension}`)) {
     throw new Error(`The server gave the file an incorrect extension: ${serverName}. No damaged file was downloaded.`);
   }
-  const base = service === "pdf-merger" ? "merged"
+  const base = service === "pdf-compressor" ? "compressed"
+    : service === "pdf-merger" ? "merged"
     : service === "zip-maker" ? "archive"
-      : (originalFilename || "converted").replace(/\.[^.]+$/, "");
+      : service === "pdf-splitter" ? "split"
+        : service === "image-to-pdf" ? "images"
+          : service === "pdf-organizer" ? "organized"
+            : (originalFilename || "converted").replace(/\.[^.]+$/, "");
   const safeBase = base.split(/[\\/]/).pop() || "converted";
   return { filename: serverName || `${safeBase}.${extension}`, extension, mime };
 }

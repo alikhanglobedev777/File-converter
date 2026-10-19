@@ -2,8 +2,10 @@ const PDFDocument = require('pdfkit');
 const fs = require('node:fs');
 const { outputPath } = require('./output');
 const { readWorkbook, displayCell, color } = require('./workbook');
+const { pdfPrintOptions } = require('./pdf-export-options');
 
-exports.convertExcelToPdf = async inputPath => {
+exports.convertExcelToPdf = async (inputPath, options = {}) => {
+  const print = pdfPrintOptions(options);
   const workbook = await readWorkbook(inputPath);
   const filename = outputPath('pdf');
   const doc = new PDFDocument({ autoFirstPage: false, margin: 30 });
@@ -15,10 +17,10 @@ exports.convertExcelToPdf = async inputPath => {
     for (const sheet of workbook.worksheets) {
       if (!sheet.rowCount) continue;
       const columns = Math.max(1, sheet.columnCount);
-      const landscape = sheet.pageSetup.orientation === 'landscape' || columns > 5;
+      const landscape = print.orientation === 'landscape' || (print.orientation === 'auto' && (sheet.pageSetup.orientation === 'landscape' || columns > 5));
       let y;
       const addPage = () => {
-        doc.addPage({ size: 'A4', layout: landscape ? 'landscape' : 'portrait', margin: 30 });
+        doc.addPage({ size: print.paperSize, layout: landscape ? 'landscape' : 'portrait', margin: 30 });
         doc.font('Helvetica-Bold').fontSize(13).fillColor('#000000').text(sheet.name, 30, 25);
         y = 50;
       };
