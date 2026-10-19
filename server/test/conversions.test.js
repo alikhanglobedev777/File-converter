@@ -56,10 +56,11 @@ after(async () => {
   if (directory) await fs.rm(directory, { recursive: true, force: true });
 });
 
-async function convert(service, data, filename, multiple = false) {
+async function convert(service, data, filename, multiple = false, page = null) {
   const form = new FormData();
   if (multiple) data.forEach((buffer, i) => form.append('files', new Blob([buffer]), filename[i]));
   else form.append('file', new Blob([data]), filename);
+  if (page !== null) form.append('page', String(page));
   const response = await fetch(`${base}/${service}`, { method: 'POST', body: form });
   const buffer = Buffer.from(await response.arrayBuffer());
   assert.equal(response.status, 200, `${service}: ${buffer.toString().slice(0, 200)}`);
@@ -67,6 +68,7 @@ async function convert(service, data, filename, multiple = false) {
   const expected = {
     'pdf-to-excel': ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     'pdf-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    'pdf-to-jpg': ['jpg', 'image/jpeg'],
     'pdf-to-ppt': ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
     'excel-to-pdf': ['pdf', 'application/pdf'],
     'excel-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -74,8 +76,7 @@ async function convert(service, data, filename, multiple = false) {
     'pdf-merger': ['pdf', 'application/pdf'],
     'zip-maker': ['zip', 'application/zip'],
   };
-  const [extension, mime] = expected[service] || (response.headers.get('content-type')?.includes('zip')
-    ? ['zip', 'application/zip'] : ['jpg', 'image/jpeg']);
+  const [extension, mime] = expected[service];
   assert.equal(response.headers.get('content-type'), mime, `${service}: Content-Type`);
   assert.match(response.headers.get('content-disposition'), new RegExp(`\\.${extension}(?:"|;|$)`, 'i'), `${service}: download filename`);
   assert.equal(buffer.subarray(0, extension === 'pdf' ? 5 : 2).toString(), extension === 'pdf' ? '%PDF-' :
@@ -111,18 +112,40 @@ test('PDF to Word contains editable tables and every page', async () => {
   assert.match(xml, /6,267/); assert.match(xml, /55.3%/); assert.match(xml, /112233/);
 });
 
-test('PDF to JPG returns all pages in a ZIP; single page stays a JPG', async () => {
-  const { buffer, response } = await convert('pdf-to-jpg', pdf, 'report.pdf');
-  assert.match(response.headers.get('content-disposition'), /report\.zip/);
-  const zip = await JSZip.loadAsync(buffer);
-  assert.deepEqual(Object.keys(zip.files).sort(), ['page-001.jpg', 'page-002.jpg', 'page-003.jpg']);
-  for (const name of Object.keys(zip.files)) {
-    const image = await sharp(await zip.file(name).async('nodebuffer')).metadata();
-    assert.equal(image.format, 'jpeg'); assert.equal(image.width, 1200); assert.equal(image.height, 840);
-  }
+test('PDF to JPG always returns a JPEG and exports the requested page', async () => {
+  const first = await convert('pdf-to-jpg', pdf, 'report.pdf');
+  assert.match(first.response.headers.get('content-disposition'), /report\.jpg/);
+  assert.equal(first.response.headers.get('content-type'), 'image/jpeg');
+  const image = await sharp(first.buffer).metadata();
+  assert.equal(image.format, 'jpeg');
+  assert.equal(image.width, 1200); assert.equal(image.height, 840);
+
+  const second = await convert('pdf-to-jpg', pdf, 'report.pdf', false, 2);
+  assert.match(second.response.headers.get('content-disposition'), /report-page-002\.jpg/);
+  assert.equal((await sharp(second.buffer).metadata()).format, 'jpeg');
+  assert.notDeepEqual(second.buffer, first.buffer, 'different pages must yield different images');
+
+  const third = await convert('pdf-to-jpg', pdf, 'report.pdf', false, 3);
+  assert.match(third.response.headers.get('content-disposition'), /report-page-003\.jpg/);
+  assert.notDeepEqual(third.buffer, second.buffer);
+
   const single = await convert('pdf-to-jpg', singlePdf, 'single.pdf');
   assert.match(single.response.headers.get('content-disposition'), /single\.jpg/);
   assert.equal((await sharp(single.buffer).metadata()).format, 'jpeg');
+});
+
+test('PDF-to-JPG rejects invalid and out-of-range page numbers without leaving files', async () => {
+  for (const selectedPage of ['0', '-2', '1.5', 'abc', '99999999999999999999', '4']) {
+    const form = new FormData();
+    form.append('file', new Blob([pdf]), 'three.pdf');
+    form.append('page', selectedPage);
+    const response = await fetch(`${base}/pdf-to-jpg`, { method: 'POST', body: form });
+    assert.equal(response.status, 400, selectedPage);
+    assert.match((await response.json()).error, /page/i);
+  }
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.deepEqual(await fs.readdir(uploads), baselineUploads);
+  assert.deepEqual(await fs.readdir(outputs), baselineOutputs);
 });
 
 test('PDF to PowerPoint preserves page count and aspect ratio', async () => {
@@ -208,12 +231,14 @@ test('large Excel tables paginate without dropping the last row', async () => {
   for (let i = 1; i <= 120; i++) assert.match(text, new RegExp(`ROW-${i}-MARKER`));
 });
 
-test('twelve-page JPG and PowerPoint exports retain numeric page order', async () => {
+test('twelve-page JPG page selection and PowerPoint exports retain page order', async () => {
   const input = await makePdf(12);
-  const images = await convert('pdf-to-jpg', input, 'twelve.pdf');
-  const imageZip = await JSZip.loadAsync(images.buffer);
-  assert.equal(Object.keys(imageZip.files).length, 12);
-  assert.equal(Object.keys(imageZip.files).sort()[9], 'page-010.jpg');
+  const tenth = await convert('pdf-to-jpg', input, 'twelve.pdf', false, 10);
+  assert.match(tenth.response.headers.get('content-disposition'), /twelve-page-010\.jpg/);
+  assert.equal((await sharp(tenth.buffer).metadata()).format, 'jpeg');
+  const last = await convert('pdf-to-jpg', input, 'twelve.pdf', false, 12);
+  assert.match(last.response.headers.get('content-disposition'), /twelve-page-012\.jpg/);
+  assert.notDeepEqual(tenth.buffer, last.buffer);
   const ppt = await convert('pdf-to-ppt', input, 'twelve.pdf');
   const pptZip = await JSZip.loadAsync(ppt.buffer);
   const slideNames = Object.keys(pptZip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));

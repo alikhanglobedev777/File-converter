@@ -27,12 +27,20 @@ test('each converter validates correct extensions and output types', async () =>
     ['excel-to-word', 'docx', zip, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     ['excel-to-ppt', 'pptx', zip, 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
     ['pdf-to-jpg', 'jpg', jpg, 'image/jpeg'],
-    ['pdf-to-jpg', 'zip', zip, 'application/zip'],
     ['zip-maker', 'zip', zip, 'application/zip'],
   ];
   for (const [service, ext, data, mime] of cases) {
     assert.equal((await validateDownload(service, resp(mime, `result.${ext}`), data, 'original.pdf')).extension, ext, service);
   }
+});
+
+test('PDF-to-JPG rejects ZIP bytes, ZIP filenames and ZIP media types', async () => {
+  await assert.rejects(validateDownload('pdf-to-jpg', resp('application/zip', 'report.zip'), zip, 'report.pdf'), /Incorrect download format/);
+  await assert.rejects(validateDownload('pdf-to-jpg', resp('image/jpeg', 'report.jpg'), zip, 'report.pdf'), /Incorrect download format/);
+  await assert.rejects(validateDownload('pdf-to-jpg', resp('application/zip', 'report.jpg'), jpg, 'report.pdf'), /Content-Type/);
+  await assert.rejects(validateDownload('pdf-to-jpg', resp('image/jpeg', 'report.zip'), jpg, 'report.pdf'), /incorrect extension/);
+  const truncated = new Blob([Buffer.from([0xff, 0xd8, 0xff, 0xe0])]);
+  await assert.rejects(validateDownload('pdf-to-jpg', resp('image/jpeg', 'report.jpg'), truncated, 'report.pdf'), /incomplete JPG/);
 });
 
 test('bad MIME, wrong extension, and partial ZIP downloads are blocked', async () => {

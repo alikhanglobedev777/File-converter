@@ -3,6 +3,7 @@
 const formats = {
   "pdf-to-excel": ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
   "pdf-to-word": ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  "pdf-to-jpg": ["jpg", "image/jpeg"],
   "pdf-to-ppt": ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
   "excel-to-pdf": ["pdf", "application/pdf"],
   "excel-to-word": ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
@@ -43,13 +44,17 @@ export async function validateDownload(service, response, blob, originalFilename
     ? "pdf"
     : bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff ? "jpg"
       : isZip(bytes) ? "zip" : "unknown";
-  const [extension, mime] = service === "pdf-to-jpg"
-    ? (signature === "zip" ? ["zip", "application/zip"] : ["jpg", "image/jpeg"])
-    : (formats[service] || []);
+  const [extension, mime] = formats[service] || [];
   const expectedSignature = zipFormats.has(extension) ? "zip" : extension;
   if (!extension || signature !== expectedSignature) {
     const actual = signature === "unknown" ? "unknown data" : `${signature.toUpperCase()} data`;
     throw new Error(`Incorrect download format: ${service} returned ${actual}, not ${extension?.toUpperCase() || "a supported file"}. Check that your backend is running the updated conversion route.`);
+  }
+  if (extension === 'jpg') {
+    const end = new Uint8Array(await blob.slice(-2).arrayBuffer());
+    if (end[0] !== 0xff || end[1] !== 0xd9) {
+      throw new Error("The server returned an incomplete JPG. No damaged file was downloaded.");
+    }
   }
   if (zipFormats.has(extension) && !(await completeZip(blob))) {
     throw new Error("The server returned an incomplete ZIP-based file. No damaged file was downloaded.");
