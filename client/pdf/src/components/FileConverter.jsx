@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   FiAlertCircle, FiArrowRight, FiCheck, FiCheckCircle, FiChevronRight,
@@ -10,6 +10,8 @@ import ToolCard from "./ToolCard";
 import { validateDownload } from "../utils/downloadFormat";
 import { requestConversion } from "../utils/conversionRequest";
 import "./Fileconverter.css";
+
+const PdfPreview = lazy(() => import("./PdfPreview.jsx"));
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const BATCH_MAX_FILES = 5;
@@ -54,7 +56,7 @@ export default function FileConverter({ service }) {
 
   useEffect(() => {
     const first = files[0];
-    if (!first || (!first.type.startsWith('image/') && !/\.(pdf|png|jpe?g)$/i.test(first.name))) {
+    if (!first || !(first.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(first.name))) {
       return undefined;
     }
     const url = URL.createObjectURL(first);
@@ -394,11 +396,13 @@ export default function FileConverter({ service }) {
               </div>
             )}
 
-            {previewUrl && files.length > 0 && (
+            {files.length > 0 && (/\.pdf$/i.test(files[0].name) || previewUrl) && (
               <div className="preview-card">
                 <div className="preview-card__heading"><strong>File preview</strong><small>{files[0].name} · {formatBytes(files[0].size)}</small></div>
                 {/\.pdf$/i.test(files[0].name) ? (
-                  <iframe title={`Preview ${files[0].name}`} src={`${previewUrl}#toolbar=0`} loading="lazy" />
+                  <Suspense fallback={<p role="status">Loading PDF preview…</p>}>
+                    <PdfPreview file={files[0]} />
+                  </Suspense>
                 ) : <img src={previewUrl} alt={`Preview of ${files[0].name}`} />}
                 {files.length > 1 && <p>Showing the first selected file. {files.length - 1} more in your list.</p>}
               </div>
