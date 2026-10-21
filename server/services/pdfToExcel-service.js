@@ -1,7 +1,6 @@
 const ExcelJS = require('exceljs');
 const { writeOutput } = require('./output');
-const { openPdf, renderPage, cropPage, extractLayout, joinItems } = require('./pdf-layout');
-const { spatialRows } = require('./pdf-spatial-rows');
+const { openPdf, renderPage, cropPage, extractLayout, joinItems, positionedLines, isTableLayout } = require('./pdf-layout');
 
 const uniquePositions = values => values.sort((a, b) => a - b).filter((v, i, all) => i === 0 || v - all[i - 1] > 1);
 const nearest = (values, value) => values.reduce((best, v, i) => Math.abs(v - value) < Math.abs(values[best] - value) ? i : best, 0);
@@ -29,6 +28,59 @@ function addImage(workbook, sheet, buffer, row, width, height, endColumn) {
   sheet.addImage(imageId, { tl: { col: 0, row }, ...extent, editAs: 'oneCell' });
 }
 
+// Use a fixed coordinate grid for non-tabular pages (CVs, forms, invoices).
+// Guessing columns from every text fragment creates tiny columns and pushes
+// neighboring text into unrelated cells. The grid retains PDF x/y placement.
+function placePositionedText(sheet, layout) {
+  const grid = 10; // PDF points per Excel column
+  const columnCount = Math.min(160, Math.ceil(layout.width / grid));
+  const pointsToExcelWidth = points => Math.max(1, (points * 96 / 72 - 5) / 7);
+  for (let col = 1; col <= columnCount; col++) {
+    sheet.getColumn(col).width = pointsToExcelWidth(grid);
+  }
+  const lines = positionedLines(layout.items);
+  let rowIndex = 1, bottom = 0;
+  for (const line of lines) {
+    const gap = line.y - bottom;
+    if (gap > 1.5) {
+      // A spacer is necessary: Excel normally collapses blank PDF whitespace.
+      sheet.getRow(rowIndex++).height = Math.min(409, gap);
+    }
+    const row = sheet.getRow(rowIndex++);
+    row.height = Math.max(9, Math.min(409, line.height));
+    const segments = line.segments;
+    let usedThrough = 0, previousCell;
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const start = Math.max(1, Math.floor(Math.max(0, segment.x) / grid) + 1);
+      if (start <= usedThrough) {
+        // Overlapping PDF text runs must never silently replace earlier text.
+        if (previousCell) previousCell.value = String(previousCell.value ?? '') + ' ' + segment.text;
+        continue;
+      }
+      if (start > columnCount) continue;
+      const next = segments[i + 1];
+      const nextStart = next ? Math.max(1, Math.floor(Math.max(0, next.x) / grid) + 1) : columnCount + 1;
+      const textRight = segment.x + Math.max(segment.width, segment.size * segment.text.length * 0.35);
+      const end = Math.min(columnCount, nextStart - 1,
+        Math.max(start, Math.ceil((textRight + 2) / grid)));
+      if (end > start) sheet.mergeCells(rowIndex - 1, start, rowIndex - 1, end);
+      const cell = sheet.getCell(rowIndex - 1, start);
+      setValue(cell, segment.text);
+      styleText(cell, [segment]);
+      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false, indent: 0 };
+      previousCell = cell;
+      usedThrough = Math.max(start, end);
+    }
+    bottom = Math.max(bottom, line.y + line.height);
+  }
+  if (!lines.length) {
+    // Preserve the page's visual appearance inside the editable worksheet.
+    addImage(workbook, sheet, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
+  }
+  sheet.pageSetup.printArea = 'A1:' + sheet.getColumn(columnCount).letter + Math.max(1, sheet.rowCount);
+}
+
 exports.convertPdfToExcel = async (pdfPath) => {
   const document = await openPdf(pdfPath);
   const workbook = new ExcelJS.Workbook();
@@ -42,7 +94,7 @@ exports.convertPdfToExcel = async (pdfPath) => {
       });
       const rendered = await renderPage(document, page);
       try {
-        if (layout.cells.length >= 4) {
+        if (isTableLayout(layout)) {
           const xs = uniquePositions(layout.cells.flatMap(c => [c.x, c.x + c.width]));
           const ys = uniquePositions(layout.cells.flatMap(c => [c.y, c.y + c.height]));
           const left = xs[0], top = ys[0], bottom = ys.at(-1), width = xs.at(-1) - left;
@@ -79,43 +131,7 @@ exports.convertPdfToExcel = async (pdfPath) => {
           }
           sheet.pageSetup.printArea = `A1:${sheet.getColumn(xs.length - 1).letter}${sheet.rowCount}`;
         } else {
-          // Use the page's real PDF coordinates, rather than a guessed set of
-          // text-start columns. Sparse, narrow columns + merged blocks preserve
-          // headings, bullets, right-aligned dates, and vertical whitespace.
-          const rows = spatialRows(layout.items);
-          const step = 9; // PDF points per Excel column
-          const columnCount = Math.max(1, Math.ceil(layout.width / step));
-          const columnWidth = step * 96 / 72 / 7;
-          for (let col = 1; col <= columnCount; col++) sheet.getColumn(col).width = columnWidth;
-          let rowNumber = 1;
-          if (rows.length && rows[0].y > 1) {
-            sheet.getRow(rowNumber++).height = Math.min(409, rows[0].y);
-          }
-          for (let index = 0; index < rows.length; index++) {
-            const row = rows[index], next = rows[index + 1];
-            const distance = next ? next.y - row.y : row.height * 1.35;
-            sheet.getRow(rowNumber).height = Math.min(409, Math.max(row.height * 1.15, distance));
-            row.segments.forEach((segment, position) => {
-              const nextSegment = row.segments[position + 1];
-              const firstCol = Math.max(1, Math.min(columnCount, Math.floor(segment.x / step) + 1));
-              let lastCol = Math.max(firstCol, Math.min(columnCount, Math.ceil(
-                (segment.x + Math.max(segment.width, segment.text.length * row.height * 0.4) + 3) / step
-              )));
-              if (nextSegment) lastCol = Math.max(firstCol, Math.min(lastCol, Math.floor(nextSegment.x / step)));
-              if (lastCol > firstCol) sheet.mergeCells(rowNumber, firstCol, rowNumber, lastCol);
-              const cell = sheet.getCell(rowNumber, firstCol);
-              setValue(cell, segment.text);
-              styleText(cell, segment.items);
-              cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false, indent: 0 };
-            });
-            rowNumber++;
-          }
-          if (!rows.length) {
-            // An image-only PDF must not become an empty worksheet.
-            addImage(workbook, sheet, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
-          }
-          sheet.pageSetup.printArea = `A1:${sheet.getColumn(columnCount).letter}${Math.max(1, rowNumber - 1)}`;
-          // Keep a pixel-faithful reference next to the editable reconstruction.
+          placePositionedText(sheet, layout);
           const original = workbook.addWorksheet(`Original ${pageNumber}`, { views: [{ showGridLines: false }] });
           addImage(workbook, original, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
         }
