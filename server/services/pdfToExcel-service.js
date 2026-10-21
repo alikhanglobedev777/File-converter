@@ -1,6 +1,6 @@
 const ExcelJS = require('exceljs');
 const { writeOutput } = require('./output');
-const { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems } = require('./pdf-layout');
+const { openPdf, renderPage, cropPage, extractLayout, joinItems, positionedLines, isTableLayout } = require('./pdf-layout');
 
 const uniquePositions = values => values.sort((a, b) => a - b).filter((v, i, all) => i === 0 || v - all[i - 1] > 1);
 const nearest = (values, value) => values.reduce((best, v, i) => Math.abs(v - value) < Math.abs(values[best] - value) ? i : best, 0);
@@ -28,6 +28,58 @@ function addImage(workbook, sheet, buffer, row, width, height, endColumn) {
   sheet.addImage(imageId, { tl: { col: 0, row }, ...extent, editAs: 'oneCell' });
 }
 
+// Use a fixed coordinate grid for non-tabular pages (CVs, forms, invoices).
+// Guessing columns from every text fragment creates tiny columns and pushes
+// neighboring text into unrelated cells. The grid retains PDF x/y placement.
+function placePositionedText(sheet, layout) {
+  const grid = 10; // PDF points per Excel column
+  const columnCount = Math.min(160, Math.ceil(layout.width / grid));
+  const pointsToExcelWidth = points => Math.max(1, (points * 96 / 72 - 5) / 7);
+  for (let col = 1; col <= columnCount; col++) {
+    sheet.getColumn(col).width = pointsToExcelWidth(grid);
+  }
+  const lines = positionedLines(layout.items);
+  let rowIndex = 1, bottom = 0;
+  for (const line of lines) {
+    const gap = line.y - bottom;
+    if (gap > 1.5) {
+      // A spacer is necessary: Excel normally collapses blank PDF whitespace.
+      sheet.getRow(rowIndex++).height = Math.min(409, gap);
+    }
+    const row = sheet.getRow(rowIndex++);
+    row.height = Math.max(9, Math.min(409, line.height));
+    const segments = line.segments;
+    let usedThrough = 0, previousCell;
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const start = Math.max(1, Math.floor(Math.max(0, segment.x) / grid) + 1);
+      if (start <= usedThrough) {
+        // Overlapping PDF text runs must never silently replace earlier text.
+        if (previousCell) previousCell.value = String(previousCell.value ?? '') + ' ' + segment.text;
+        continue;
+      }
+      if (start > columnCount) continue;
+      const next = segments[i + 1];
+      const nextStart = next ? Math.max(1, Math.floor(Math.max(0, next.x) / grid) + 1) : columnCount + 1;
+      const textRight = segment.x + Math.max(segment.width, segment.size * segment.text.length * 0.35);
+      const end = Math.min(columnCount, nextStart - 1,
+        Math.max(start, Math.ceil((textRight + 2) / grid)));
+      if (end > start) sheet.mergeCells(rowIndex - 1, start, rowIndex - 1, end);
+      const cell = sheet.getCell(rowIndex - 1, start);
+      setValue(cell, segment.text);
+      styleText(cell, [segment]);
+      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false, indent: 0 };
+      previousCell = cell;
+      usedThrough = Math.max(start, end);
+    }
+    bottom = Math.max(bottom, line.y + line.height);
+  }
+  if (!lines.length) {
+    sheet.getCell('A1').value = 'Image-only page: the Original sheet preserves the PDF appearance. OCR is required for editable text.';
+  }
+  sheet.pageSetup.printArea = 'A1:' + sheet.getColumn(columnCount).letter + Math.max(1, sheet.rowCount);
+}
+
 exports.convertPdfToExcel = async (pdfPath) => {
   const document = await openPdf(pdfPath);
   const workbook = new ExcelJS.Workbook();
@@ -41,7 +93,7 @@ exports.convertPdfToExcel = async (pdfPath) => {
       });
       const rendered = await renderPage(document, page);
       try {
-        if (layout.cells.length >= 4) {
+        if (isTableLayout(layout)) {
           const xs = uniquePositions(layout.cells.flatMap(c => [c.x, c.x + c.width]));
           const ys = uniquePositions(layout.cells.flatMap(c => [c.y, c.y + c.height]));
           const left = xs[0], top = ys[0], bottom = ys.at(-1), width = xs.at(-1) - left;
@@ -78,24 +130,7 @@ exports.convertPdfToExcel = async (pdfPath) => {
           }
           sheet.pageSetup.printArea = `A1:${sheet.getColumn(xs.length - 1).letter}${sheet.rowCount}`;
         } else {
-          const lines = groupLines(layout.items);
-          const starts = uniquePositions(lines.filter(line => line.items.length > 1).flatMap(line => line.items.map(item => item.x)));
-          const columns = starts.length > 0 && starts.length <= 30 ? starts : [0];
-          columns.forEach((x, i) => { sheet.getColumn(i + 1).width = Math.max(12, Math.min(80, ((columns[i + 1] || layout.width) - x) / 5)); });
-          lines.forEach((line, index) => {
-            const buckets = new Map();
-            for (const item of line.items) {
-              const col = nearest(columns, item.x) + 1;
-              if (!buckets.has(col)) buckets.set(col, []);
-              buckets.get(col).push(item);
-            }
-            sheet.getRow(index + 1).height = Math.max(...line.items.map(item => item.size)) * 1.5;
-            for (const [col, items] of buckets) {
-              const cell = sheet.getCell(index + 1, col);
-              setValue(cell, joinItems(items)); styleText(cell, items);
-            }
-          });
-          if (!lines.length) sheet.getCell('A1').value = 'Image-only PDF page: see Original sheet. OCR is required for editable text.';
+          placePositionedText(sheet, layout);
           const original = workbook.addWorksheet(`Original ${pageNumber}`, { views: [{ showGridLines: false }] });
           addImage(workbook, original, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
         }
