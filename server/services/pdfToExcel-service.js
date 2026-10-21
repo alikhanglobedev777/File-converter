@@ -75,7 +75,8 @@ function placePositionedText(sheet, layout) {
     bottom = Math.max(bottom, line.y + line.height);
   }
   if (!lines.length) {
-    sheet.getCell('A1').value = 'Image-only page: the Original sheet preserves the PDF appearance. OCR is required for editable text.';
+    // Preserve the page's visual appearance inside the editable worksheet.
+    addImage(workbook, sheet, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
   }
   sheet.pageSetup.printArea = 'A1:' + sheet.getColumn(columnCount).letter + Math.max(1, sheet.rowCount);
 }
