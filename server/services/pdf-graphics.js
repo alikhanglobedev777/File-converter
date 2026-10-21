@@ -1,3 +1,17 @@
+function parseRgbColor(args, fallback = '000000') {
+  const first = args && args[0];
+  if (typeof first === 'string' && /^#?[0-9a-f]{6}$/i.test(first)) {
+    return first.replace('#', '').toUpperCase();
+  }
+  const values = (Array.isArray(first) || ArrayBuffer.isView(first)) ? first : args;
+  if (!values || values.length < 3 ||
+      ![0, 1, 2].every(i => typeof values[i] === 'number')) return fallback;
+  const rgb = Array.from(values).slice(0, 3);
+  const unit = rgb.every(value => value >= 0 && value <= 1);
+  return rgb.map(value => Math.max(0, Math.min(255,
+    Math.round(unit ? value * 255 : value))).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
 // Interpret PDF.js drawing operators in *page* coordinates. PDF.js exposes
 // constructPath as [pathOperators, flatCoordinates, bounds], NOT an array of
 // painted rectangles; the painting operation follows it in the operator list.
@@ -7,18 +21,7 @@ function extractGraphics(operatorList, OPS, Util, viewport) {
   let state = { matrix: [1, 0, 0, 1, 0, 0], fill: '000000', stroke: '000000', lineWidth: 1 };
   let pendingRects = [], pendingLines = [];
 
-  const color = (args, fallback) => {
-    const first = args && args[0];
-    if (typeof first === 'string' && /^[#]?[0-9a-f]{6}$/i.test(first)) {
-      return first.replace('#', '').toUpperCase();
-    }
-    const components = Array.isArray(first) || ArrayBuffer.isView(first) ?
-      first : args;
-    if (!components || components.length < 3 || ![0, 1, 2].every(i => typeof components[i] === 'number')) return fallback;
-    return [...components].slice(0, 3).map(v =>
-      Math.max(0, Math.min(255, Math.round(v <= 1 ? v * 255 : v)))
-        .toString(16).padStart(2, '0')).join('').toUpperCase();
-  };
+
   const transform = (point) => Util.applyTransform(point,
     Util.transform(viewport.transform, state.matrix));
   const bounded = (points) => {
@@ -66,9 +69,9 @@ function extractGraphics(operatorList, OPS, Util, viewport) {
     } else if (op === OPS.transform) {
       state.matrix = Util.transform(state.matrix, args);
     } else if (op === OPS.setFillRGBColor) {
-      state.fill = color(args, state.fill);
+      state.fill = parseRgbColor(args, state.fill);
     } else if (op === OPS.setStrokeRGBColor) {
-      state.stroke = color(args, state.stroke);
+      state.stroke = parseRgbColor(args, state.stroke);
     } else if (op === OPS.setLineWidth) {
       state.lineWidth = Number(args[0]) || 1;
     } else if (op === OPS.constructPath) {
@@ -94,6 +97,9 @@ function extractGraphics(operatorList, OPS, Util, viewport) {
     } else if ([OPS.fill, OPS.eoFill, OPS.stroke, OPS.closeStroke, OPS.fillStroke,
       OPS.eoFillStroke].includes(op)) {
       paint(op);
+    } else if (op === OPS.endPath) {
+      pendingRects = [];
+      pendingLines = [];
     } else if ([OPS.paintImageXObject, OPS.paintJpegXObject,
       OPS.paintInlineImageXObject, OPS.paintImageMaskXObject].includes(op)) {
       const rect = bounded([
@@ -114,4 +120,4 @@ function extractGraphics(operatorList, OPS, Util, viewport) {
   return { rectangles: dedupe(rectangles), lines, images: dedupe(images) };
 }
 
-module.exports = { extractGraphics };
+module.exports = { extractGraphics, parseRgbColor };
