@@ -1,6 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { extractGraphics } = require('./pdf-graphics');
+const { extractGraphics, parseRgbColor } = require('./pdf-graphics');
 
 async function openPdf(filename) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -100,14 +100,13 @@ async function extractLayout(page) {
   const graphics = extractGraphics(operators, OPS, Util, viewport);
   const colors = new Map(), stack = [];
   let state = { matrix: [1, 0, 0, 1, 0, 0], fill: '000000', stroke: '000000', lineWidth: 1, font: '' };
-  const hex = value => typeof value === 'string' ? value.replace('#', '').toUpperCase() : '000000';
   for (let i = 0; i < operators.fnArray.length; i++) {
     const op = operators.fnArray[i], args = operators.argsArray[i];
     if (op === OPS.save) stack.push({ ...state, matrix: [...state.matrix] });
     else if (op === OPS.restore) state = stack.pop() || state;
     else if (op === OPS.transform) state.matrix = Util.transform(state.matrix, args);
-    else if (op === OPS.setFillRGBColor) state.fill = hex(args[0]);
-    else if (op === OPS.setStrokeRGBColor) state.stroke = hex(args[0]);
+    else if (op === OPS.setFillRGBColor) state.fill = parseRgbColor(args, state.fill);
+    else if (op === OPS.setStrokeRGBColor) state.stroke = parseRgbColor(args, state.stroke);
     else if (op === OPS.setLineWidth) state.lineWidth = args[0];
     else if (op === OPS.setFont) state.font = args[0];
     else if (op === OPS.showText) {
@@ -124,7 +123,7 @@ async function extractLayout(page) {
     const size = Math.hypot(matrix[2], matrix[3]) || item.height || 10;
     const name = font?.name || content.styles[item.fontName]?.fontFamily || 'Arial';
     return {
-      text: item.str.trim(), x: matrix[4], y: matrix[5] - size * 0.8, width: item.width, size,
+      text: item.str, x: matrix[4], y: matrix[5] - size * 0.8, width: item.width, size,
       font: /times|serif/i.test(name) && !/sans/i.test(name) ? 'Times New Roman' : /courier|mono/i.test(name) ? 'Courier New' : 'Arial',
       bold: !!font?.bold || /bold/i.test(name), italic: !!font?.italic || /italic|oblique/i.test(name),
       color: colors.get(`${item.fontName}:${item.str.trim()}`)?.shift() || '000000',
