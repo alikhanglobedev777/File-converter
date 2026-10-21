@@ -56,12 +56,18 @@ function location(grid, x, y) {
 }
 
 function range(grid, rect) {
-  const first = location(grid, rect.x, rect.y);
-  const last = location(grid,
-    rect.x + Math.max(0, rect.width) - 0.01,
-    rect.y + Math.max(0, rect.height) - 0.01);
-  return { top:first.row, left:first.col, bottom:Math.max(first.row,last.row),
-    right:Math.max(first.col,last.col) };
+  // Round boundaries to a shared grid line. Using floor at both ends
+  // makes adjoining PDF cells claim the same Excel row/column, and then
+  // later data rows silently disappear as overlapping merges.
+  const left = clamp(Math.round(Math.max(0, rect.x) / COLUMN_POINTS) + 1,
+    1, grid.columns);
+  const top = clamp(Math.round(Math.max(0, rect.y) / ROW_POINTS) + 1,
+    1, grid.rows);
+  const right = clamp(Math.round(Math.max(0, rect.x + rect.width) / COLUMN_POINTS),
+    left, grid.columns);
+  const bottom = clamp(Math.round(Math.max(0, rect.y + rect.height) / ROW_POINTS),
+    top, grid.rows);
+  return { top, left, bottom, right };
 }
 
 function fillRectangles(sheet, layout, grid) {
