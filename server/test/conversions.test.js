@@ -108,12 +108,12 @@ test('PDF to Excel preserves columns, colors, borders, numbers and all pages', a
   const { buffer } = await convert('pdf-to-excel', pdf, 'report.pdf');
   const book = new ExcelJS.Workbook(); await book.xlsx.load(buffer);
   assert.equal(book.worksheets.length, 9);
-  const pages = book.worksheets.filter(sheet => /^Page \\d+$/.test(sheet.name));
+  const pages = book.worksheets.filter(sheet => /^Page \d+$/.test(sheet.name));
   assert.equal(pages.length, 3);
-  for (const original of book.worksheets.filter(sheet => /^Original \\d+$/.test(sheet.name))) {
+  for (const original of book.worksheets.filter(sheet => /^Original \d+$/.test(sheet.name))) {
     assert.equal(original.getImages().length, 1, 'Original sheet must display full PDF page');
   }
-  for (const textSheet of book.worksheets.filter(sheet => /^Text \\d+$/.test(sheet.name))) {
+  for (const textSheet of book.worksheets.filter(sheet => /^Text \d+$/.test(sheet.name))) {
     const texts = [];
     textSheet.eachRow(row => texts.push(row.getCell(2).value));
     assert.ok(texts.join(' ').includes('Attock'), 'editable extraction must include table text');
