@@ -107,8 +107,18 @@ async function convert(service, data, filename, multiple = false, options = null
 test('PDF to Excel preserves columns, colors, borders, numbers and all pages', async () => {
   const { buffer } = await convert('pdf-to-excel', pdf, 'report.pdf');
   const book = new ExcelJS.Workbook(); await book.xlsx.load(buffer);
-  assert.equal(book.worksheets.length, 3);
-  for (const sheet of book.worksheets) {
+  assert.equal(book.worksheets.length, 9);
+  const pages = book.worksheets.filter(sheet => /^Page \\d+$/.test(sheet.name));
+  assert.equal(pages.length, 3);
+  for (const original of book.worksheets.filter(sheet => /^Original \\d+$/.test(sheet.name))) {
+    assert.equal(original.getImages().length, 1, 'Original sheet must display full PDF page');
+  }
+  for (const textSheet of book.worksheets.filter(sheet => /^Text \\d+$/.test(sheet.name))) {
+    const texts = [];
+    textSheet.eachRow(row => texts.push(row.getCell(2).value));
+    assert.ok(texts.join(' ').includes('Attock'), 'editable extraction must include table text');
+  }
+  for (const sheet of pages) {
     assert.equal(sheet.columnCount, 3);
     assert.deepEqual(sheet.getRow(2).values.slice(1), ['Area', 'Quantity', 'Rate']);
     assert.deepEqual(sheet.getRow(3).values.slice(1, 3), ['Attock', 6267]);
@@ -128,8 +138,50 @@ test('PDF to Word contains editable tables and every page', async () => {
   const zip = await JSZip.loadAsync(buffer);
   const xml = await zip.file('word/document.xml').async('string');
   assert.equal((xml.match(/<w:tbl>/g) || []).length, 3);
+  assert.equal((xml.match(/<a:blip/g) || []).length, 0,
+    'selectable PDF text should not be exported as a full-page picture');
   assert.equal((xml.match(/Attock/g) || []).length, 3);
   assert.match(xml, /6,267/); assert.match(xml, /55.3%/); assert.match(xml, /112233/);
+});
+
+test('PDF resume text stays editable, and Excel preserves the full visual page', async () => {
+  const source = await new Promise((resolve, reject) => {
+    const doc = new PDFKit({ autoFirstPage: false });
+    const chunks = [];
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    doc.addPage({ size: [612, 792], margin: 20 });
+    doc.font('Helvetica-Bold').fontSize(24).text('Muhammad Ali', 66, 72);
+    doc.font('Helvetica-Bold').fontSize(11).text('PERSONAL INFORMATION', 66, 155);
+    doc.font('Helvetica').fontSize(10).text('Lahore', 66, 205, { lineBreak: false });
+    doc.text('03021848264', 348, 205, { lineBreak: false });
+    doc.font('Helvetica-Bold').text('CAREER OBJECTIVE', 66, 265);
+    doc.font('Helvetica').text('Full Stack Developer building scalable applications and reliable systems.', 66, 300, { width: 480 });
+    doc.end();
+  });
+  const excel = await convert('pdf-to-excel', source, 'resume.pdf');
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(excel.buffer);
+  assert.deepEqual(wb.worksheets.map(sheet => sheet.name), ['Original 1', 'Page 1', 'Text 1']);
+  assert.equal(wb.getWorksheet('Original 1').getImages().length, 1);
+  const editable = wb.getWorksheet('Page 1');
+  assert.ok(editable.columnCount < 128, 'columns should not be tiny fragments');
+  const text = wb.getWorksheet('Text 1').getColumn(2).values.map(value => String(value || '')).join(' ');
+  for (const expected of ['Muhammad Ali', 'PERSONAL INFORMATION', 'CAREER OBJECTIVE', 'Full Stack Developer', '03021848264']) {
+    assert.ok(text.includes(expected), 'missing Excel data: ' + expected);
+  }
+
+  const word = await convert('pdf-to-word', source, 'resume.pdf');
+  const zip = await JSZip.loadAsync(word.buffer);
+  const xml = await zip.file('word/document.xml').async('string');
+  for (const expected of ['Muhammad Ali', 'PERSONAL INFORMATION', 'CAREER OBJECTIVE', 'Full Stack Developer', '03021848264']) {
+    assert.ok(xml.includes(expected), 'missing editable Word text: ' + expected);
+  }
+  assert.ok((xml.match(/<w:t\b/g) || []).length >= 5,
+    'PDF content must be stored in editable Word text runs');
+  assert.equal((xml.match(/<a:blip/g) || []).length, 0,
+    'text-based PDF pages must not be rasterized into Word pictures');
 });
 
 test('PDF to JPG always returns a JPEG and exports the requested page', async () => {
