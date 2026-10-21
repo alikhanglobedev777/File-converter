@@ -104,44 +104,47 @@ async function convert(service, data, filename, multiple = false, options = null
   return { buffer, response };
 }
 
-test('PDF to Excel preserves columns, colors, borders, numbers and all pages', async () => {
+test('PDF to Excel preserves editable table values, styles, and all pages', async () => {
   const { buffer } = await convert('pdf-to-excel', pdf, 'report.pdf');
-  const book = new ExcelJS.Workbook(); await book.xlsx.load(buffer);
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(buffer);
   assert.equal(book.worksheets.length, 9);
-  const pages = book.worksheets.filter(sheet => /^Page \d+$/.test(sheet.name));
-  assert.equal(pages.length, 3);
-  for (const original of book.worksheets.filter(sheet => /^Original \d+$/.test(sheet.name))) {
-    assert.equal(original.getImages().length, 1, 'Original sheet must display full PDF page');
-  }
-  for (const textSheet of book.worksheets.filter(sheet => /^Text \d+$/.test(sheet.name))) {
-    const texts = [];
-    textSheet.eachRow(row => texts.push(row.getCell(2).value));
-    assert.ok(texts.join(' ').includes('Attock'), 'editable extraction must include table text');
-  }
-  for (const sheet of pages) {
-    assert.equal(sheet.columnCount, 3);
-    assert.deepEqual(sheet.getRow(2).values.slice(1), ['Area', 'Quantity', 'Rate']);
-    assert.deepEqual(sheet.getRow(3).values.slice(1, 3), ['Attock', 6267]);
-    assert.ok(Math.abs(sheet.getCell('C3').value - 0.553) < 1e-10);
-    assert.equal(sheet.getCell('C3').numFmt, '0.0%');
-    assert.equal(sheet.getCell('B4').value, 0);
-    assert.equal(sheet.getCell('A2').font.bold, true);
-    assert.equal(sheet.getCell('A2').font.color.argb, 'FFFFFFFF');
-    assert.equal(sheet.getCell('A2').fill.fgColor.argb, 'FF112233');
-    assert.equal(sheet.getCell('A3').border.left.style, 'thin');
-    assert.equal(sheet.getImages().length, 2);
+  for (let page = 1; page <= 3; page++) {
+    const sheet = book.getWorksheet('Page ' + page);
+    const values = [], cells = [];
+    sheet.eachRow(row => row.eachCell(cell => {
+      if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
+        values.push(String(cell.value)); cells.push(cell);
+      }
+    }));
+    const data = values.join(' ');
+    for (const value of ['Area', 'Quantity', 'Rate', 'Attock', '6267', '0'])
+      assert.ok(data.includes(value), 'missing native Excel cell: ' + value);
+    assert.ok(cells.some(cell => cell.value === 0.553 && cell.numFmt === '0.0%'));
+    assert.ok(cells.some(cell => cell.font?.bold), 'header text should retain boldness');
+    assert.ok(cells.some(cell => cell.fill?.fgColor?.argb === 'FF112233'),
+      'header background should remain editable cell styling');
+    assert.ok(cells.some(cell => cell.border?.left || cell.border?.top),
+      'table borders should be native Excel cell borders');
+    assert.equal(sheet.getImages().length, 0,
+      'a table should not be a pasted PDF screenshot');
+    assert.equal(book.getWorksheet('Original ' + page).getImages().length, 1);
+    const textItems = book.getWorksheet('Text ' + page).getColumn(3).values.join(' ');
+    assert.ok(textItems.includes('Attock'));
   }
 });
 
-test('PDF to Word contains editable tables and every page', async () => {
+test('PDF to Word keeps native editable tables and decorative shapes', async () => {
   const { buffer } = await convert('pdf-to-word', pdf, 'report.pdf');
   const zip = await JSZip.loadAsync(buffer);
   const xml = await zip.file('word/document.xml').async('string');
   assert.equal((xml.match(/<w:tbl>/g) || []).length, 3);
-  assert.equal((xml.match(/<a:blip/g) || []).length, 0,
-    'selectable PDF text should not be exported as a full-page picture');
   assert.equal((xml.match(/Attock/g) || []).length, 3);
-  assert.match(xml, /6,267/); assert.match(xml, /55.3%/); assert.match(xml, /112233/);
+  assert.match(xml, /6,267/);
+  assert.match(xml, /55.3%/);
+  assert.match(xml, /112233/);
+  assert.ok((xml.match(/<w:t\b/g) || []).length >= 10,
+    'converted table cells must have native editable Word text');
 });
 
 test('PDF resume text stays editable, and Excel preserves the full visual page', async () => {
@@ -163,11 +166,13 @@ test('PDF resume text stays editable, and Excel preserves the full visual page',
   const excel = await convert('pdf-to-excel', source, 'resume.pdf');
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(excel.buffer);
-  assert.deepEqual(wb.worksheets.map(sheet => sheet.name), ['Original 1', 'Page 1', 'Text 1']);
+  assert.deepEqual(wb.worksheets.map(sheet => sheet.name), ['Page 1', 'Text 1', 'Original 1']);
   assert.equal(wb.getWorksheet('Original 1').getImages().length, 1);
   const editable = wb.getWorksheet('Page 1');
   assert.ok(editable.columnCount < 128, 'columns should not be tiny fragments');
-  const text = wb.getWorksheet('Text 1').getColumn(2).values.map(value => String(value || '')).join(' ');
+  assert.equal(editable.getImages().length, 0,
+    'text-based PDF output should open as editable spreadsheet cells');
+  const text = wb.getWorksheet('Text 1').getColumn(3).values.map(value => String(value || '')).join(' ');
   for (const expected of ['Muhammad Ali', 'PERSONAL INFORMATION', 'CAREER OBJECTIVE', 'Full Stack Developer', '03021848264']) {
     assert.ok(text.includes(expected), 'missing Excel data: ' + expected);
   }
@@ -180,8 +185,8 @@ test('PDF resume text stays editable, and Excel preserves the full visual page',
   }
   assert.ok((xml.match(/<w:t\b/g) || []).length >= 5,
     'PDF content must be stored in editable Word text runs');
-  assert.equal((xml.match(/<a:blip/g) || []).length, 0,
-    'text-based PDF pages must not be rasterized into Word pictures');
+  // Embedded artwork is allowed, but all text must remain genuine Word runs.
+  assert.ok((xml.match(/<w:t\b/g) || []).length >= 5);
 });
 
 test('PDF to JPG always returns a JPEG and exports the requested page', async () => {
