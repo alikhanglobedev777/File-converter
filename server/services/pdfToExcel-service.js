@@ -32,53 +32,79 @@ function addImage(workbook, sheet, buffer, row, width, height, endColumn) {
 // Guessing columns from every text fragment creates tiny columns and pushes
 // neighboring text into unrelated cells. The grid retains PDF x/y placement.
 function placePositionedText(sheet, layout) {
-  const grid = 10; // PDF points per Excel column
-  const columnCount = Math.min(160, Math.ceil(layout.width / grid));
-  const pointsToExcelWidth = points => Math.max(1, (points * 96 / 72 - 5) / 7);
+  // Each column represents a stable PDF horizontal interval. Make the grid
+  // wide enough for actual Excel glyph metrics rather than micro-columns.
+  const grid = 18; // PDF points per Excel column
+  const columnCount = Math.max(1, Math.min(128, Math.ceil(layout.width / grid)));
+  const pointsToExcelWidth = points => Math.max(2, (points * 96 / 72 - 5) / 7);
   for (let col = 1; col <= columnCount; col++) {
     sheet.getColumn(col).width = pointsToExcelWidth(grid);
   }
+
   const lines = positionedLines(layout.items);
   let rowIndex = 1, bottom = 0;
   for (const line of lines) {
-    const gap = line.y - bottom;
-    if (gap > 1.5) {
-      // A spacer is necessary: Excel normally collapses blank PDF whitespace.
-      sheet.getRow(rowIndex++).height = Math.min(409, gap);
-    }
-    const row = sheet.getRow(rowIndex++);
-    row.height = Math.max(9, Math.min(409, line.height));
-    const segments = line.segments;
-    let usedThrough = 0, previousCell;
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      const start = Math.max(1, Math.floor(Math.max(0, segment.x) / grid) + 1);
+    const gap = Math.max(0, line.y - bottom);
+    if (gap > 2) sheet.getRow(rowIndex++).height = Math.min(409, gap);
+    const activeRow = rowIndex++;
+    const row = sheet.getRow(activeRow);
+    const overflow = [];
+    let wraps = 1, usedThrough = 0;
+    for (let i = 0; i < line.segments.length; i++) {
+      const segment = line.segments[i];
+      const start = Math.min(columnCount, Math.max(1, Math.floor(Math.max(0, segment.x) / grid) + 1));
+      const next = line.segments[i + 1];
+      const nextStart = next ? Math.max(1, Math.floor(Math.max(0, next.x) / grid) + 1) : columnCount + 1;
       if (start <= usedThrough) {
-        // Overlapping PDF text runs must never silently replace earlier text.
-        if (previousCell) previousCell.value = String(previousCell.value ?? '') + ' ' + segment.text;
+        // Never overwrite a prior run: put crowded text on a readable
+        // additional row instead of silently dropping it.
+        overflow.push(segment);
         continue;
       }
-      if (start > columnCount) continue;
-      const next = segments[i + 1];
-      const nextStart = next ? Math.max(1, Math.floor(Math.max(0, next.x) / grid) + 1) : columnCount + 1;
-      const textRight = segment.x + Math.max(segment.width, segment.size * segment.text.length * 0.35);
-      const end = Math.min(columnCount, nextStart - 1,
-        Math.max(start, Math.ceil((textRight + 2) / grid)));
-      if (end > start) sheet.mergeCells(rowIndex - 1, start, rowIndex - 1, end);
-      const cell = sheet.getCell(rowIndex - 1, start);
+      const end = Math.max(start, Math.min(columnCount, nextStart - 1));
+      const available = Math.max(grid, (end - start + 1) * grid);
+      const textWidth = Math.max(segment.width || 0, segment.text.length * (segment.size || 10) * 0.55);
+      wraps = Math.max(wraps, Math.ceil(textWidth * 1.25 / available));
+      if (end > start) sheet.mergeCells(activeRow, start, activeRow, end);
+      const cell = sheet.getCell(activeRow, start);
       setValue(cell, segment.text);
       styleText(cell, [segment]);
-      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false, indent: 0 };
-      previousCell = cell;
-      usedThrough = Math.max(start, end);
+      cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true, indent: 0 };
+      usedThrough = end;
+    }
+    row.height = Math.min(409, Math.max(16, line.height * Math.min(24, wraps) * 1.2));
+    for (const segment of overflow) {
+      const spillRow = sheet.getRow(rowIndex++);
+      spillRow.height = Math.max(18, segment.size * 1.7);
+      const cell = sheet.getCell(spillRow.number, 1);
+      setValue(cell, segment.text);
+      styleText(cell, [segment]);
+      sheet.mergeCells(spillRow.number, 1, spillRow.number, columnCount);
+      cell.alignment = { vertical: 'top', wrapText: true, indent: 0 };
     }
     bottom = Math.max(bottom, line.y + line.height);
   }
-  if (!lines.length) {
-    // Preserve the page's visual appearance inside the editable worksheet.
-    addImage(workbook, sheet, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
-  }
   sheet.pageSetup.printArea = 'A1:' + sheet.getColumn(columnCount).letter + Math.max(1, sheet.rowCount);
+}
+
+// Every extracted PDF text item is preserved verbatim in an accessible sheet.
+// In difficult layouts this doubles as a lossless fallback for crowded cells.
+function addTextSheet(workbook, layout, number) {
+  const sheet = workbook.addWorksheet('Text ' + number, { views: [{ showGridLines: false }] });
+  sheet.columns = [{ header: 'PDF Y (pt)', key: 'position', width: 16 },
+                   { header: 'Extracted text (editable)', key: 'text', width: 100 }];
+  sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF134E64' } };
+  const ordered = [...layout.items].sort((a, b) => a.y - b.y || a.x - b.x);
+  for (const item of ordered) {
+    const row = sheet.addRow({ position: Math.round(item.y), text: item.text });
+    const cell = row.getCell(2);
+    styleText(cell, [item]);
+    cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+    row.height = Math.min(180, Math.max(20, Math.ceil(item.text.length / 90) * (item.size || 10) * 1.5));
+  }
+  sheet.views = [{ state: 'frozen', ySplit: 1, showGridLines: false }];
+  if (!ordered.length) sheet.addRow({ text: 'No embedded text. Scanned PDFs need OCR to become editable.' });
 }
 
 exports.convertPdfToExcel = async (pdfPath) => {
@@ -88,13 +114,18 @@ exports.convertPdfToExcel = async (pdfPath) => {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
       const page = await document.getPage(pageNumber);
       const layout = await extractLayout(page);
+      const tableLayout = isTableLayout(layout);
+      // A visual first sheet prevents the PDF illustration/logo from being
+      // hidden on another tab. Users can edit the adjacent Page and Text sheets.
+      const rendered = await renderPage(document, page);
+      const original = workbook.addWorksheet(`Original ${pageNumber}`, { views: [{ showGridLines: false }] });
+      addImage(workbook, original, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
       const sheet = workbook.addWorksheet(`Page ${pageNumber}`, {
         views: [{ showGridLines: false }],
         pageSetup: { orientation: layout.width > layout.height ? 'landscape' : 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 1, margins: { left: 0.2, right: 0.2, top: 0.2, bottom: 0.2, header: 0, footer: 0 } },
       });
-      const rendered = await renderPage(document, page);
       try {
-        if (isTableLayout(layout)) {
+        if (tableLayout) {
           const xs = uniquePositions(layout.cells.flatMap(c => [c.x, c.x + c.width]));
           const ys = uniquePositions(layout.cells.flatMap(c => [c.y, c.y + c.height]));
           const left = xs[0], top = ys[0], bottom = ys.at(-1), width = xs.at(-1) - left;
@@ -132,9 +163,11 @@ exports.convertPdfToExcel = async (pdfPath) => {
           sheet.pageSetup.printArea = `A1:${sheet.getColumn(xs.length - 1).letter}${sheet.rowCount}`;
         } else {
           placePositionedText(sheet, layout);
-          const original = workbook.addWorksheet(`Original ${pageNumber}`, { views: [{ showGridLines: false }] });
-          addImage(workbook, original, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
+          if (!layout.items.length) {
+            addImage(workbook, sheet, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
+          }
         }
+        addTextSheet(workbook, layout, pageNumber);
       } finally { document.canvasFactory.destroy(rendered); }
       page.cleanup();
     }
