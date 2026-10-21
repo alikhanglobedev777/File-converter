@@ -1,8 +1,7 @@
 const fs = require('node:fs/promises');
-const { Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType } = require('docx');
+const { Document, Packer, Paragraph, TextRun, ImageRun, AlignmentType, Table, TableRow, TableCell, WidthType, TabStopType } = require('docx');
 const { writeOutput } = require('./output');
-const { openPdf, renderPage, extractLayout } = require('./pdf-layout');
-const { spatialRows } = require('./pdf-spatial-rows');
+const { openPdf, renderPage, extractLayout, positionedLines, isTableLayout, joinItems } = require('./pdf-layout');
 
 // A PDF is a fixed-position canvas; turning it directly into flowing Word
 // paragraphs changes line breaks, column placement, and page geometry.
@@ -42,7 +41,11 @@ exports.convertPdfToWord = async (inputPath) => {
             })],
           });
         } finally { pdf.canvasFactory.destroy(rendered); }
-        transcriptions.push({ number: n, lines: spatialRows(layout.items) });
+        transcriptions.push({
+          number: n, width: layout.width,
+          tableCells: isTableLayout(layout) ? layout.cells : null,
+          items: layout.items, lines: positionedLines(layout.items),
+        });
       } finally { page.cleanup(); }
     }
     // The appendix makes extracted text editable/searchable without changing
@@ -57,22 +60,82 @@ exports.convertPdfToWord = async (inputPath) => {
           heading: 'Heading2',
           children: [new TextRun('Page ' + page.number)],
         }));
-        for (const line of page.lines) {
-          const sorted = line.segments.sort((a, b) => a.x - b.x);
-          children.push(new Paragraph({
-            spacing: { after: 0, before: 0 },
-            children: sorted.map((segment, index) => {
-              const first = segment.items[0] || {};
-              return new TextRun({
-                text: (index ? '    ' : '') + segment.text,
-                bold: first.bold || false,
-                italics: first.italic || false,
-                font: first.font || 'Arial',
-                size: Math.max(12, Math.min(48, Math.round((first.size || 10) * 2))),
-                color: first.color || '000000',
-              });
-            }),
+        if (page.tableCells) {
+          // Preserve editable tables alongside the page-faithful image sections.
+          const cells = page.tableCells;
+          const left = Math.min(...cells.map(c => c.x));
+          const right = Math.max(...cells.map(c => c.x + c.width));
+          const scale = Math.min(1, 10800 / Math.max(1, (right - left) * 20));
+          const rows = [];
+          for (const rect of [...cells].sort((a, b) => a.y - b.y || a.x - b.x)) {
+            let row = rows.find(r => Math.abs(r.y - rect.y) < 1);
+            if (!row) rows.push(row = { y: rect.y, cells: [] });
+            if (!row.cells.some(c => Math.abs(c.x - rect.x) < 1 &&
+                Math.abs(c.width - rect.width) < 1 && Math.abs(c.height - rect.height) < 1)) {
+              row.cells.push(rect);
+            }
+          }
+          children.push(new Table({
+            width: { size: Math.round((right - left) * 20 * scale), type: WidthType.DXA },
+            rows: rows.map(row => new TableRow({
+              children: row.cells.sort((a, b) => a.x - b.x).map(rect => {
+                const items = page.items.filter(item =>
+                  item.x >= rect.x - 1 && item.x < rect.x + rect.width - 1 &&
+                  item.y + item.size / 2 >= rect.y &&
+                  item.y + item.size / 2 < rect.y + rect.height);
+                const first = items[0] || {};
+                const border = rect.stroke ? {
+                  style: 'single',
+                  size: rect.lineWidth > 1.2 ? 8 : 4,
+                  color: rect.stroke,
+                } : undefined;
+                return new TableCell({
+                  width: { size: Math.round(rect.width * 20 * scale), type: WidthType.DXA },
+                  shading: rect.fill ? { fill: rect.fill } : undefined,
+                  borders: border ? { top: border, right: border, bottom: border, left: border } : undefined,
+                  margins: { top: 70, bottom: 70, left: 100, right: 100 },
+                  children: [new Paragraph({ children: [new TextRun({
+                    text: joinItems(items), bold: !!first.bold, italics: !!first.italic,
+                    font: first.font || 'Arial', size: Math.max(2, Math.round((first.size || 10) * 2)),
+                    color: first.color || '000000',
+                  })] })],
+                });
+              }),
+            })),
           }));
+        }
+        // Keep text outside detected tables editable too, without duplicating
+        // table content in the transcription.
+        const outside = page.tableCells ? page.items.filter(item =>
+          !page.tableCells.some(rect =>
+            item.x >= rect.x - 1 && item.x < rect.x + rect.width - 1 &&
+            item.y + item.size / 2 >= rect.y &&
+            item.y + item.size / 2 < rect.y + rect.height)
+        ) : page.items;
+        const lines = positionedLines(outside);
+        const horizontalScale = Math.min(1, 540 / Math.max(1, page.width));
+        let previousBottom = 0;
+        for (const line of lines) {
+          children.push(new Paragraph({
+            spacing: {
+              before: Math.round(Math.max(0, line.y - previousBottom) * 20),
+              after: 0,
+            },
+            tabStops: line.segments.map(segment => ({
+              type: TabStopType.LEFT,
+              position: Math.max(0, Math.round(segment.x * horizontalScale * 20)),
+            })),
+            children: line.segments.flatMap(segment => [
+              new TextRun({ text: '\t' }),
+              new TextRun({
+                text: segment.text, bold: !!segment.bold, italics: !!segment.italic,
+                font: segment.font || 'Arial',
+                size: Math.max(2, Math.round((segment.size || 10) * 2)),
+                color: segment.color || '000000',
+              }),
+            ]),
+          }));
+          previousBottom = Math.max(previousBottom, line.y + line.height);
         }
       }
       sections.push({

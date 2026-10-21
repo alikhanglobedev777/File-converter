@@ -52,6 +52,44 @@ function joinItems(items) {
   }, '')).join('\n');
 }
 
+// Keep PDF text fragments in source coordinates. Group only adjacent runs with
+// identical styling, so columns and differently styled headings do not collapse.
+function positionedLines(items) {
+  return groupLines(items).map(line => {
+    const segments = [];
+    for (const item of line.items) {
+      const previous = segments.at(-1);
+      const gap = previous && item.x - (previous.x + previous.width);
+      if (previous && gap >= -0.5 && gap < Math.max(1.5, item.size * 0.3) &&
+          previous.font === item.font && previous.bold === item.bold &&
+          previous.italic === item.italic && previous.color === item.color &&
+          Math.abs(previous.size - item.size) < 0.5) {
+        previous.text += (gap > item.size * 0.15 ? ' ' : '') + item.text;
+        previous.width = Math.max(previous.width, item.x + item.width - previous.x);
+      } else segments.push({ ...item });
+    }
+    return { y: Math.max(0, Math.min(...line.items.map(item => item.y))),
+      height: Math.max(...line.items.map(item => item.size)) * 1.35, segments };
+  });
+}
+
+// Decorative boxes aren't a table. A table has at least two rows and
+// repeatable, aligned column positions, not merely four rectangles.
+function isTableLayout(layout) {
+  if (layout.cells.length < 4) return false;
+  const rows = [];
+  for (const cell of [...layout.cells].sort((a, b) => a.y - b.y)) {
+    let row = rows.find(r => Math.abs(r.y - cell.y) <= 1);
+    if (!row) rows.push(row = { y: cell.y, cells: [] });
+    row.cells.push(cell);
+  }
+  const populated = rows.filter(row => row.cells.length >= 2);
+  if (populated.length < 2) return false;
+  return populated.some((row, i) => populated.slice(i + 1).some(other =>
+    row.cells.filter(a => other.cells.some(b =>
+      Math.abs(a.x - b.x) <= 1 && Math.abs(a.width - b.width) <= 1)).length >= 2));
+}
+
 // Only recognize axis-aligned rectangles, never arbitrary drawings as cells.
 async function extractLayout(page) {
   const { OPS, Util } = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -112,4 +150,4 @@ async function extractLayout(page) {
   return { width: viewport.width, height: viewport.height, items, cells };
 }
 
-module.exports = { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems };
+module.exports = { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems, positionedLines, isTableLayout };
