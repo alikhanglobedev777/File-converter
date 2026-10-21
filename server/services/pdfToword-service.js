@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, WidthType } = require('docx');
 const { writeOutput } = require('./output');
-const { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems } = require('./pdf-layout');
+const { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems, positionedLines, isTableLayout } = require('./pdf-layout');
 
 exports.convertPdfToWord = async (inputPath) => {
   const pdf = await openPdf(inputPath);
@@ -13,7 +13,7 @@ exports.convertPdfToWord = async (inputPath) => {
       const rendered = await renderPage(pdf, page);
       const children = [];
       try {
-        if (layout.cells.length >= 4) {
+        if (isTableLayout(layout)) {
           const left = Math.min(...layout.cells.map(c => c.x));
           const right = Math.max(...layout.cells.map(c => c.x + c.width));
           const top = Math.min(...layout.cells.map(c => c.y));
@@ -49,11 +49,34 @@ exports.convertPdfToWord = async (inputPath) => {
           }));
           if (layout.height - bottom > 1) children.push(imageParagraph(bottom, layout.height - bottom));
         } else if (layout.items.length) {
-          for (const row of groupLines(layout.items)) {
-            children.push(new Paragraph({ children: row.items.map((item, i) => new TextRun({
-              text: (i ? ' ' : '') + item.text, bold: item.bold, italics: item.italic,
-              font: item.font, size: item.size * 2, color: item.color,
-            })) }));
+          // Put text at its PDF horizontal stops instead of joining an entire
+          // visual line into a single left-aligned Word paragraph.
+          // Spacing between lines similarly follows the PDF coordinates.
+          let bottom = 0;
+          for (const line of positionedLines(layout.items)) {
+            const tabs = line.segments.map(item => ({
+              type: 'left',
+              position: Math.max(0, Math.round(item.x * 20)),
+            }));
+            const gap = Math.max(0, line.y - bottom);
+            children.push(new Paragraph({
+              spacing: {
+                before: Math.round(gap * 20),
+                after: 0,
+                line: Math.round(line.height * 20),
+                lineRule: 'exact',
+              },
+              tabStops: tabs,
+              children: line.segments.flatMap(item => [
+                new TextRun({ text: '\\t' }),
+                new TextRun({
+                  text: item.text, bold: item.bold, italics: item.italic,
+                  font: item.font, size: Math.max(2, Math.round(item.size * 2)),
+                  color: item.color,
+                }),
+              ]),
+            }));
+            bottom = Math.max(bottom, line.y + line.height);
           }
         } else {
           // Image-only PDFs are inserted at their original aspect ratio, sized to
@@ -65,7 +88,7 @@ exports.convertPdfToWord = async (inputPath) => {
           })] }));
         }
       } finally { pdf.canvasFactory.destroy(rendered); }
-      sections.push({ properties: { page: { size: { width: layout.width * 20, height: layout.height * 20 }, margin: { top: 0, bottom: 0, left: 400, right: 400 } } }, children });
+      sections.push({ properties: { page: { size: { width: layout.width * 20, height: layout.height * 20 }, margin: { top: 0, bottom: 0, left: 0, right: 0 } } }, children });
       page.cleanup();
     }
     return writeOutput('docx', async filename => fs.writeFile(filename, await Packer.toBuffer(new Document({ sections }))));
