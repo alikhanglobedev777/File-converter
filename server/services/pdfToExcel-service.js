@@ -1,6 +1,7 @@
 const ExcelJS = require('exceljs');
 const { writeOutput } = require('./output');
-const { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems } = require('./pdf-layout');
+const { openPdf, renderPage, cropPage, extractLayout, joinItems } = require('./pdf-layout');
+const { spatialRows } = require('./pdf-spatial-rows');
 
 const uniquePositions = values => values.sort((a, b) => a - b).filter((v, i, all) => i === 0 || v - all[i - 1] > 1);
 const nearest = (values, value) => values.reduce((best, v, i) => Math.abs(v - value) < Math.abs(values[best] - value) ? i : best, 0);
@@ -78,24 +79,43 @@ exports.convertPdfToExcel = async (pdfPath) => {
           }
           sheet.pageSetup.printArea = `A1:${sheet.getColumn(xs.length - 1).letter}${sheet.rowCount}`;
         } else {
-          const lines = groupLines(layout.items);
-          const starts = uniquePositions(lines.filter(line => line.items.length > 1).flatMap(line => line.items.map(item => item.x)));
-          const columns = starts.length > 0 && starts.length <= 30 ? starts : [0];
-          columns.forEach((x, i) => { sheet.getColumn(i + 1).width = Math.max(12, Math.min(80, ((columns[i + 1] || layout.width) - x) / 5)); });
-          lines.forEach((line, index) => {
-            const buckets = new Map();
-            for (const item of line.items) {
-              const col = nearest(columns, item.x) + 1;
-              if (!buckets.has(col)) buckets.set(col, []);
-              buckets.get(col).push(item);
-            }
-            sheet.getRow(index + 1).height = Math.max(...line.items.map(item => item.size)) * 1.5;
-            for (const [col, items] of buckets) {
-              const cell = sheet.getCell(index + 1, col);
-              setValue(cell, joinItems(items)); styleText(cell, items);
-            }
-          });
-          if (!lines.length) sheet.getCell('A1').value = 'Image-only PDF page: see Original sheet. OCR is required for editable text.';
+          // Use the page's real PDF coordinates, rather than a guessed set of
+          // text-start columns. Sparse, narrow columns + merged blocks preserve
+          // headings, bullets, right-aligned dates, and vertical whitespace.
+          const rows = spatialRows(layout.items);
+          const step = 9; // PDF points per Excel column
+          const columnCount = Math.max(1, Math.ceil(layout.width / step));
+          const columnWidth = step * 96 / 72 / 7;
+          for (let col = 1; col <= columnCount; col++) sheet.getColumn(col).width = columnWidth;
+          let rowNumber = 1;
+          if (rows.length && rows[0].y > 1) {
+            sheet.getRow(rowNumber++).height = Math.min(409, rows[0].y);
+          }
+          for (let index = 0; index < rows.length; index++) {
+            const row = rows[index], next = rows[index + 1];
+            const distance = next ? next.y - row.y : row.height * 1.35;
+            sheet.getRow(rowNumber).height = Math.min(409, Math.max(row.height * 1.15, distance));
+            row.segments.forEach((segment, position) => {
+              const nextSegment = row.segments[position + 1];
+              const firstCol = Math.max(1, Math.min(columnCount, Math.floor(segment.x / step) + 1));
+              let lastCol = Math.max(firstCol, Math.min(columnCount, Math.ceil(
+                (segment.x + Math.max(segment.width, segment.text.length * row.height * 0.4) + 3) / step
+              )));
+              if (nextSegment) lastCol = Math.max(firstCol, Math.min(lastCol, Math.floor(nextSegment.x / step)));
+              if (lastCol > firstCol) sheet.mergeCells(rowNumber, firstCol, rowNumber, lastCol);
+              const cell = sheet.getCell(rowNumber, firstCol);
+              setValue(cell, segment.text);
+              styleText(cell, segment.items);
+              cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false, indent: 0 };
+            });
+            rowNumber++;
+          }
+          if (!rows.length) {
+            // An image-only PDF must not become an empty worksheet.
+            addImage(workbook, sheet, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
+          }
+          sheet.pageSetup.printArea = `A1:${sheet.getColumn(columnCount).letter}${Math.max(1, rowNumber - 1)}`;
+          // Keep a pixel-faithful reference next to the editable reconstruction.
           const original = workbook.addWorksheet(`Original ${pageNumber}`, { views: [{ showGridLines: false }] });
           addImage(workbook, original, rendered.canvas.toBuffer('image/png'), 0, layout.width, layout.height);
         }
