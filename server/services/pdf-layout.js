@@ -1,5 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { extractGraphics } = require('./pdf-graphics');
 
 async function openPdf(filename) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -96,7 +97,8 @@ async function extractLayout(page) {
   const viewport = page.getViewport({ scale: 1 });
   const operators = await page.getOperatorList();
   const content = await page.getTextContent();
-  const rectangles = [], colors = new Map(), stack = [];
+  const graphics = extractGraphics(operators, OPS, Util, viewport);
+  const colors = new Map(), stack = [];
   let state = { matrix: [1, 0, 0, 1, 0, 0], fill: '000000', stroke: '000000', lineWidth: 1, font: '' };
   const hex = value => typeof value === 'string' ? value.replace('#', '').toUpperCase() : '000000';
   for (let i = 0; i < operators.fnArray.length; i++) {
@@ -113,24 +115,6 @@ async function extractLayout(page) {
       const key = `${state.font}:${text}`;
       if (!colors.has(key)) colors.set(key, []);
       colors.get(key).push(state.fill);
-    } else if (op === OPS.constructPath) {
-      const [paint, paths] = args;
-      for (const data of paths || []) {
-        if (data.length !== 13 || data[0] !== 0 || data[3] !== 1 || data[6] !== 1 || data[9] !== 1 || data[12] !== 4) continue;
-        const matrix = Util.transform(viewport.transform, state.matrix);
-        const corners = [1, 4, 7, 10].map(j => {
-          const point = [data[j], data[j + 1]];
-          Util.applyTransform(point, matrix);
-          return point;
-        });
-        const xs = corners.map(p => p[0]), ys = corners.map(p => p[1]);
-        const x = Math.min(...xs), y = Math.min(...ys);
-        const width = Math.max(...xs) - x, height = Math.max(...ys) - y;
-        if (width < 8 || height < 8 || !corners.every(p => (Math.abs(p[0] - x) < 0.5 || Math.abs(p[0] - x - width) < 0.5) && (Math.abs(p[1] - y) < 0.5 || Math.abs(p[1] - y - height) < 0.5))) continue;
-        const fill = [OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke].includes(paint);
-        const stroke = [OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke].includes(paint);
-        if (fill || stroke) rectangles.push({ x, y, width, height, fill: fill ? state.fill : null, stroke: stroke ? state.stroke : null, lineWidth: state.lineWidth });
-      }
     }
   }
   const items = content.items.filter(item => item.str?.trim()).map(item => {
@@ -146,8 +130,12 @@ async function extractLayout(page) {
       color: colors.get(`${item.fontName}:${item.str.trim()}`)?.shift() || '000000',
     };
   });
-  const cells = rectangles.filter(rect => rectangles.some(other => other !== rect && Math.abs(other.y - rect.y) < 1 && Math.abs(other.height - rect.height) < 1));
-  return { width: viewport.width, height: viewport.height, items, cells };
+  const cells = graphics.rectangles.filter(rect =>
+    graphics.rectangles.some(other => other !== rect &&
+      Math.abs(other.y - rect.y) < 1 &&
+      Math.abs(other.height - rect.height) < 1));
+  return { width: viewport.width, height: viewport.height, items, cells,
+    graphics };
 }
 
 module.exports = { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems, positionedLines, isTableLayout };
