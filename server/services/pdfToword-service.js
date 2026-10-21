@@ -82,6 +82,7 @@ function buildEditableTable(layout) {
     width: { size: Math.max(1, Math.round(width * 20)), type: WidthType.DXA },
     indent: { size: Math.max(0, Math.round((left - PAGE_MARGIN) * 20)), type: WidthType.DXA },
     rows: rows.map(row => new TableRow({
+      height: { value: Math.round(Math.max(...row.cells.map(cell => cell.height)) * 20), rule: 'atLeast' },
       children: row.cells.sort((a, b) => a.x - b.x).map(rect => {
         const contents = layout.items.filter(item =>
           item.x >= rect.x - 1 && item.x < rect.x + rect.width - 1 &&
@@ -123,8 +124,16 @@ function editablePage(layout) {
   const outside = layout.items.filter(item => !belongsToTable(item, layout.cells));
   const before = outside.filter(item => item.y < top);
   const after = outside.filter(item => item.y >= top);
+  const heading = makeParagraphs(before, PAGE_MARGIN, layout.width);
+  const headingBottom = before.length ?
+    Math.max(...before.map(item => item.y + item.size * 1.35)) : PAGE_MARGIN;
+  const tableGap = Math.max(0, top - headingBottom);
   return [
-    ...makeParagraphs(before, PAGE_MARGIN, layout.width),
+    ...heading,
+    ...(tableGap > 2 ? [new Paragraph({
+      spacing: { before: Math.round(tableGap * 20), after: 0 },
+      children: [new TextRun({ text: '' })],
+    })] : []),
     buildEditableTable(layout),
     ...makeParagraphs(after, bottom, layout.width),
   ];
