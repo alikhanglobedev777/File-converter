@@ -153,8 +153,11 @@ exports.convertPdfToWord = async (inputPath) => {
           // these pages use an image, and the conversion explains why.
           const rendered = await renderPage(pdf, page);
           try {
-            const width = Math.max(1, layout.width - PAGE_MARGIN * 2);
-            const height = layout.height * width / layout.width;
+            const scale = Math.min(1,
+              (layout.width - PAGE_MARGIN * 2) / Math.max(1, layout.width),
+              (layout.height - PAGE_MARGIN * 2 - 36) / Math.max(1, layout.height));
+            const width = Math.max(1, layout.width * scale);
+            const height = Math.max(1, layout.height * scale);
             children = [
               new Paragraph({ children: [new TextRun('This scanned PDF page contains no selectable text. OCR is required for editable text.')] }),
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({
