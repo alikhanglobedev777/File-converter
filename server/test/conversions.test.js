@@ -189,6 +189,44 @@ test('PDF resume text stays editable, and Excel preserves the full visual page',
   assert.ok((xml.match(/<w:t\b/g) || []).length >= 5);
 });
 
+test('Embedded PDF images remain individually movable beside editable Excel and Word text', async () => {
+  const logo = await makeImage(96, 64, '#0C7A79', 'LOGO');
+  const source = await new Promise((resolve, reject) => {
+    const doc = new PDFKit({ autoFirstPage: false });
+    const parts = [];
+    doc.on('data', chunk => parts.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(parts)));
+    doc.on('error', reject);
+    doc.addPage({ size: [612, 792], margin: 20 });
+    doc.image(logo, 40, 45, { width: 96, height: 64 });
+    doc.rect(40, 120, 500, 2).fill('#0C7A79');
+    doc.fillColor('#222222').font('Helvetica-Bold').fontSize(18)
+      .text('EDITABLE RESUME HEADING', 45, 145);
+    doc.font('Helvetica').fontSize(11)
+      .text('Native text must remain selectable and editable.', 45, 190);
+    doc.end();
+  });
+  const excelResult = await convert('pdf-to-excel', source, 'graphic-resume.pdf');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(excelResult.buffer);
+  const editable = workbook.getWorksheet('Page 1');
+  assert.ok(editable.getImages().length >= 1,
+    'embedded logo must be an individual image object on the editable sheet');
+  const texts = [];
+  editable.eachRow(row => row.eachCell(cell => {
+    if (typeof cell.value === 'string') texts.push(cell.value);
+  }));
+  assert.ok(texts.join(' ').includes('EDITABLE RESUME HEADING'),
+    'embedded logo must not replace native editable text');
+
+  const wordResult = await convert('pdf-to-word', source, 'graphic-resume.pdf');
+  const zip = await JSZip.loadAsync(wordResult.buffer);
+  const xml = await zip.file('word/document.xml').async('string');
+  assert.match(xml, /EDITABLE RESUME HEADING/);
+  assert.match(xml, /<a:blip\b/, 'Word should retain embedded logo separately from text');
+  assert.match(xml, /<w:t\b/, 'Word output must have actual editable text runs');
+});
+
 test('PDF to JPG always returns a JPEG and exports the requested page', async () => {
   const first = await convert('pdf-to-jpg', pdf, 'report.pdf');
   assert.match(first.response.headers.get('content-disposition'), /report\.jpg/);
