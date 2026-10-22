@@ -50,3 +50,5 @@ jobs:
         run: npm ci
       - name: Run frontend regression tests
         run: npm test
+      - name: Build production frontend
+        run: npm run build
