@@ -28,7 +28,7 @@ test('PDF merger only accepts a genuine PDF download', async () => {
   });
 });
 
-test('all thirteen services have the required binary formats and MIME types', async () => {
+test('all fourteen services have the required binary formats and MIME types', async () => {
   const cases = [
     ['pdf-to-excel', 'xlsx', emptyZip, 'spreadsheetml.sheet'],
     ['pdf-to-word', 'docx', emptyZip, 'wordprocessingml.document'],
@@ -42,6 +42,7 @@ test('all thirteen services have the required binary formats and MIME types', as
     ['pdf-organizer', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
     ['pdf-merger', 'pdf', Buffer.from('%PDF-1.7\n'), 'application/pdf'],
     ['pdf-to-jpg', 'jpg', Buffer.from([0xff, 0xd8, 0xff, 0xd9]), 'image/jpeg'],
+    ['pdf-to-png', 'png', Buffer.from('89504e470d0a1a0a0000000049454e44ae426082', 'hex'), 'image/png'],
     ['zip-maker', 'zip', emptyZip, 'application/zip'],
   ];
   for (const [service, extension, content, mime] of cases) {
@@ -65,6 +66,18 @@ test('PDF-to-JPG does not permit ZIP archives or mislabeled ZIP bytes', async ()
 test('truncated JPG is rejected', async () => {
   await tempFile('jpg', Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x01]), async filename => {
     await assert.rejects(verifyOutputFormat('pdf-to-jpg', filename), OutputFormatError);
+  });
+});
+
+test('PDF-to-PNG rejects mislabeled or incomplete images', async () => {
+  await tempFile('png', Buffer.from([0xff, 0xd8, 0xff, 0xd9]), async filename => {
+    await assert.rejects(verifyOutputFormat('pdf-to-png', filename), OutputFormatError);
+  });
+  await tempFile('png', Buffer.from('89504e470d0a1a0a0000', 'hex'), async filename => {
+    await assert.rejects(verifyOutputFormat('pdf-to-png', filename), OutputFormatError);
+  });
+  await tempFile('zip', emptyZip, async filename => {
+    await assert.rejects(verifyOutputFormat('pdf-to-png', filename), OutputFormatError);
   });
 });
 
