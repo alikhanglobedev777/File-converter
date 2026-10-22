@@ -16,6 +16,13 @@ export default function DocumentPhotoEnhancer({ file, onApply, onClose }) {
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [originalUrl, setOriginalUrl] = useState('');
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setOriginalUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   useEffect(() => {
     const run = ++generationRef.current;
@@ -95,7 +102,10 @@ export default function DocumentPhotoEnhancer({ file, onApply, onClose }) {
         value={strength} onChange={event => setStrength(Number(event.target.value))} />
     </label>
     {!ready && !error && <p role="status">Preparing your photo…</p>}
-    <canvas ref={canvasRef} className="document-enhancer__canvas" aria-label="Enhanced photo preview" />
+    <div className="document-enhancer__compare">
+      <div><strong>Before</strong>{originalUrl && <img src={originalUrl} alt="Original document before enhancement" />}</div>
+      <div><strong>After</strong><canvas ref={canvasRef} className="document-enhancer__canvas" aria-label="Enhanced photo preview" /></div>
+    </div>
     <p className="document-enhancer__tip">Tip: Place the document on a dark, flat surface and hold the camera steady. Presets improve text contrast, but don't automatically crop or straighten perspective yet.</p>
     {error && <p role="alert" className="auth-status auth-status--error">{error}</p>}
     <div className="ocr-actions">
