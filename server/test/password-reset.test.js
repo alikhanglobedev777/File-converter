@@ -195,3 +195,51 @@ test('EmailJS sends six-digit code, not a reset link or sensitive URL', async ()
   assert.equal(sent.body.template_params.reset_link, undefined);
   assert.equal(sent.body.template_params.expires_minutes, '10');
 });
+
+
+test('nonexistent MongoDB email never issues a code or calls EmailJS', async () => {
+  let updates = 0, deliveries = 0;
+  const handlers = createPasswordResetHandlers({
+    UserModel: {
+      findOne({ email }) {
+        assert.equal(email, 'notregistered@example.com');
+        return { select: async () => null };
+      },
+      async updateOne() { updates++; throw new Error('Should not issue a code'); },
+    },
+    emailReady: () => true,
+    sendEmail: async () => { deliveries++; throw new Error('Should not send'); },
+    logger: { error() {} },
+  });
+  const res = response();
+  await handlers.forgotPassword({ body: { email: 'NotRegistered@Example.com' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, GENERIC_RESPONSE);
+  assert.equal(updates, 0);
+  assert.equal(deliveries, 0);
+});
+
+test('account removed or email changed before atomic issue receives no email', async () => {
+  let deliveries = 0;
+  const handlers = createPasswordResetHandlers({
+    UserModel: {
+      findOne: () => ({ select: async () => ({
+        _id: 'id-123', email: 'old@example.com', name: 'Someone',
+      }) }),
+      async updateOne(query) {
+        assert.equal(query._id, 'id-123');
+        assert.equal(query.email, 'old@example.com');
+        return { matchedCount: 0 };
+      },
+    },
+    emailReady: () => true,
+    sendEmail: async () => { deliveries++; },
+    hashCodeForUser: (email, code) => hashCode(email, code, 'test-secret-'.repeat(4)),
+    logger: { error() {} },
+  });
+  const res = response();
+  await handlers.forgotPassword({ body: { email: 'old@example.com' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, GENERIC_RESPONSE);
+  assert.equal(deliveries, 0);
+});
