@@ -59,3 +59,21 @@
 .document-enhancer__compare strong { font-size: 12px; }
 .document-enhancer__compare img, .document-enhancer__canvas { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; background: #f3f6fa; border: 1px solid var(--line); border-radius: 10px; }
 @media (max-width: 600px) { .document-enhancer__compare { grid-template-columns: 1fr; } .document-enhancer { padding: 13px; } }
+
+.document-enhancer__framing { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.document-enhancer__framing .button { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; }
+.document-enhancer__notice { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 8px 0; }
+.document-enhancer__corner-stage { position: relative; display: inline-block; max-width: 100%; vertical-align: top; }
+.document-enhancer__corner-stage img { display: block; width: auto; height: auto; max-width: 100%; max-height: 450px; object-fit: contain; border-radius: 10px; }
+.document-enhancer__corner-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; overflow: visible; }
+.document-enhancer__corner-stage svg g { cursor: grab; outline: none; }
+.document-enhancer__corner-stage svg g:active { cursor: grabbing; }
+.document-enhancer__corner-controls { background: #f3f8ff; border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 16px; }
+.document-enhancer__corner-controls p { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 12px; }
+.document-enhancer__corner-fields { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.document-enhancer__corner-fields fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 7px; }
+.document-enhancer__corner-fields legend { color: var(--ink); font-size: 11px; font-weight: 700; padding: 0 3px; }
+.document-enhancer__corner-fields label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--muted); margin: 4px 0; }
+.document-enhancer__corner-fields input { width: 100%; min-width: 0; box-sizing: border-box; padding: 7px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--ink); }
+.document-enhancer__corner-fields input:focus { outline: 2px solid var(--blue); }
+@media (max-width: 620px) { .document-enhancer__corner-fields { grid-template-columns: repeat(2,minmax(0,1fr)); } }
