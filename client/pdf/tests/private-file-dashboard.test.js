@@ -43,7 +43,7 @@ test('latest small converted results may be saved voluntarily, not uploaded auto
   assert.match(converter, /const saveConvertedResult = async/);
   assert.match(converter, /onClick=\{saveConvertedResult\}/);
   assert.match(converter, /!user \|\| !saveCandidate \|\| savingToVault/);
-  const request = converter.slice(converter.indexOf('const saveConvertedResult = async'), converter.indexOf('const actionLabel'));
+  const request = converter.slice(converter.indexOf('const saveConvertedResult = async'), converter.indexOf('  const actionLabel = actionLabels[service]'));
   assert.match(request, /fetch\(API_BASE_URL \+ '\/api\/files'/);
   assert.match(request, /method: 'POST'/);
   assert.doesNotMatch(converter.slice(converter.indexOf('const handleUpload'), converter.indexOf('const saveConvertedResult')), /fetch\(API_BASE_URL \+ '\/api\/files'/);
