@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { FiArrowRight, FiLock, FiMail, FiUser } from "react-icons/fi";
 import AuthAside from "./AuthAside";
@@ -13,6 +13,7 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -24,7 +25,7 @@ export default function Signup() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Signup failed");
       toast.success("Account created. Log in to continue.");
-      navigate("/login");
+      navigate("/login", { state: { next: location.state?.next === "/my-files" ? "/my-files" : "/" } });
     } catch (error) {
       toast.error(error.message || "Signup failed");
     } finally {
