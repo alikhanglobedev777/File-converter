@@ -10,6 +10,10 @@ const userSchema = new mongoose.Schema(
     passwordResetTokenHash: { type: String, select: false },
     passwordResetExpiresAt: { type: Date, select: false },
     passwordResetRequestedAt: { type: Date, select: false },
+    passwordResetCodeHash: { type: String, select: false },
+    passwordResetAttempts: { type: Number, default: 0, select: false },
+    passwordResetVerifiedTokenHash: { type: String, select: false },
+    passwordResetVerifiedExpiresAt: { type: Date, select: false },
   },
   { timestamps: true }
 );

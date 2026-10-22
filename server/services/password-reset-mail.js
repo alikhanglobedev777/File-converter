@@ -11,27 +11,11 @@ function emailJsConfig(env = process.env) {
     ? { serviceId, templateId, publicKey, privateKey } : null;
 }
 
-function passwordResetUrl(token, env = process.env) {
-  // The origin must be trusted configuration, NOT the request's Host header.
-  const origin = env.PASSWORD_RESET_BASE_URL?.trim();
-  if (!origin) throw new Error('PASSWORD_RESET_BASE_URL is not configured');
-  const base = new URL(origin);
-  if (base.protocol !== 'https:' && !(base.protocol === 'http:' &&
-      ['localhost', '127.0.0.1'].includes(base.hostname))) {
-    throw new Error('PASSWORD_RESET_BASE_URL must use HTTPS');
-  }
-  if (base.username || base.password || base.search || base.hash) {
-    throw new Error('Invalid PASSWORD_RESET_BASE_URL');
-  }
-  return new URL('/reset-password#token=' + encodeURIComponent(token), base.origin).toString();
-}
-
-async function sendPasswordResetEmail({ toEmail, toName, token }, {
+async function sendPasswordResetEmail({ toEmail, toName, code }, {
   env = process.env, fetchImpl = global.fetch,
 } = {}) {
   const config = emailJsConfig(env);
   if (!config) throw new Error('EmailJS server credentials are not configured');
-  const link = passwordResetUrl(token, env);
   const response = await fetchImpl(EMAILJS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -44,7 +28,7 @@ async function sendPasswordResetEmail({ toEmail, toName, token }, {
       template_params: {
         to_email: toEmail,
         to_name: toName || 'there',
-        reset_link: link,
+        reset_code: code,
         expires_minutes: '10',
         app_name: 'AK Converter',
       },
@@ -59,4 +43,4 @@ async function sendPasswordResetEmail({ toEmail, toName, token }, {
   }
 }
 
-module.exports = { emailJsConfig, passwordResetUrl, sendPasswordResetEmail };
+module.exports = { emailJsConfig, sendPasswordResetEmail };
