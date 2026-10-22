@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FiArrowLeft, FiArrowRight, FiMail } from "react-icons/fi";
 import AuthAside from "./AuthAside";
 import "./auth.css";
@@ -9,25 +9,25 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").r
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const onSubmit = async (event) => {
     event.preventDefault();
     setSubmitting(true);
     setError("");
-    setMessage("");
     try {
       const response = await fetch(API_BASE_URL + "/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim() }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Unable to request a reset link.");
-      setMessage(data.message || "If that email is registered, a reset link will be sent.");
+      if (!response.ok) throw new Error(data.error || "Unable to request a verification code.");
+      // The backend deliberately responds identically for unknown addresses.
+      navigate("/reset-password", { state: { email: email.trim().toLowerCase() } });
     } catch (err) {
-      setError(err.message || "Could not request a password reset.");
+      setError(err.message || "Could not request a verification code.");
     } finally {
       setSubmitting(false);
     }
@@ -36,9 +36,8 @@ export default function ForgotPassword() {
   return <div className="auth-layout"><div className="auth-card">
     <div className="auth-card__heading"><span className="eyebrow">ACCOUNT RECOVERY</span>
       <h1>Forgot your password?</h1>
-      <p>Enter your registered email address. If an account exists, we'll send a secure link valid for 10 minutes.</p>
+      <p>Enter the email address used to register. If an account exists, we'll send a six-digit code valid for 10 minutes.</p>
     </div>
-    {message && <p className="auth-status" role="status">{message}</p>}
     {error && <p className="auth-status auth-status--error" role="alert">{error}</p>}
     <form className="auth-form" onSubmit={onSubmit}>
       <label htmlFor="recovery-email">Registered email address</label>
@@ -47,7 +46,7 @@ export default function ForgotPassword() {
           placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
       </div>
       <button type="submit" className="button button--primary auth-submit" disabled={submitting}>
-        {submitting ? "Sending…" : <>Send reset link <FiArrowRight /></>}
+        {submitting ? "Sending…" : <>Send six-digit code <FiArrowRight /></>}
       </button>
     </form>
     <p className="auth-card__bottom"><Link to="/login"><FiArrowLeft /> Back to login</Link></p>
