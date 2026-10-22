@@ -147,7 +147,7 @@ export default function MyFiles() {
       </div>
     </div>
     <input ref={fileInputRef} type="file" hidden
-      accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.txt"
+      accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.pptx,.zip,.txt"
       aria-label="Choose a file to save privately" onChange={uploadFile} />
     <div className="my-files__quota">
       <strong>{items.length} of {limits.count} files</strong>
