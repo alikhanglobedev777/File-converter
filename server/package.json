@@ -2,9 +2,11 @@
   "name": "file-converter-server",
   "version": "1.0.0",
   "main": "server.js",
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
-    "start": "node server.js",
+    "start": "node init && node server.js",
     "check:db": "node scripts/check-db.js",
     "test": "node --test"
   },
