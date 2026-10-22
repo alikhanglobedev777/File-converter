@@ -66,3 +66,36 @@ test('restored transforms do not corrupt image placement', () => {
   assert.equal(graphics.images.length, 1);
   assert.equal(Math.round(graphics.images[0].x), 10);
 });
+
+
+test('scalar constructPath opcode is recognized without throwing', () => {
+  const list = {
+    fnArray: [OPS.constructPath, OPS.fill],
+    argsArray: [[OPS.rectangle, [40, 620, 100, 30]], []],
+  };
+  const found = extractGraphics(list, OPS, Util, viewport);
+  assert.equal(found.rectangles.length, 1);
+  assert.equal(found.rectangles[0].x, 40);
+  assert.equal(found.rectangles[0].y, 150);
+});
+
+test('mutating applyTransform also preserves image bounds', () => {
+  const mutating = {
+    ...Util,
+    applyTransform(point, matrix) {
+      const x = point[0], y = point[1];
+      point[0] = matrix[0] * x + matrix[2] * y + matrix[4];
+      point[1] = matrix[1] * x + matrix[3] * y + matrix[5];
+      // Mimic pdfjs-dist versions which return undefined.
+    },
+  };
+  const list = {
+    fnArray: [OPS.save, OPS.transform, OPS.paintImageXObject, OPS.restore],
+    argsArray: [[], [72, 0, 0, 48, 20, 580], ['logo'], []],
+  };
+  const found = extractGraphics(list, OPS, mutating, viewport);
+  assert.equal(found.images.length, 1);
+  assert.deepEqual(found.images[0], {
+    x: 20, y: 172, width: 72, height: 48,
+  });
+});
