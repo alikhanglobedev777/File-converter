@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { FiArrowLeft, FiDownload, FiFileText, FiInfo, FiX } from "react-icons/fi";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -9,6 +9,7 @@ import {
 import "./OcrWorkspace.css";
 import { validateDownload } from "../utils/downloadFormat";
 import { parseOcrTsv, makeSearchablePdf } from "../utils/ocrPdfExport";
+const OcrTableEditor = lazy(() => import("./OcrTableEditor.jsx"));
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
@@ -33,6 +34,7 @@ export default function OcrWorkspace() {
   const [partial, setPartial] = useState(false);
   const [exportingWord, setExportingWord] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [showTableEditor, setShowTableEditor] = useState(false);
   const generationRef = useRef(0);
   const workerRef = useRef(null);
   const loadingRef = useRef(null);
@@ -53,6 +55,7 @@ export default function OcrWorkspace() {
     setRunning(false);
     setFile(null);
     setPages([]);
+    setShowTableEditor(false);
     setPartial(false);
     setStatus("");
     setError("");
@@ -72,6 +75,7 @@ export default function OcrWorkspace() {
     setRunning(true);
     setError("");
     setPages([]);
+    setShowTableEditor(false);
     setPartial(false);
     setPageProgress(null);
     setStatus("Opening PDF on your device…");
@@ -267,7 +271,10 @@ export default function OcrWorkspace() {
         {pages.some(item => item.words?.length > 0) && <button type="button" className="button"
           onClick={exportPdf} disabled={running || exportingPdf}>
           <FiDownload /> {exportingPdf ? "Creating searchable PDF…" : "Download searchable PDF"}
-        </button>}</div>
+        </button>}
+        <button type="button" className="button" onClick={() => setShowTableEditor(open => !open)}>
+          {showTableEditor ? "Close Excel review" : "Review table for Excel"}
+        </button></div>
       {pages.some(item => item.words?.length > 0) && <p className="ocr-export-privacy">Searchable PDF is created on your device and preserves original page appearance. Its text uses initial OCR positions; textarea edits only affect TXT/Word.</p>}
       <p className="ocr-export-privacy">Word export sends only your reviewed text to the AK Converter server to create a DOCX. The original scanned PDF stays on your device.</p>
       {pages.map(item => <div className="ocr-page-result" key={item.page}>
@@ -276,6 +283,9 @@ export default function OcrWorkspace() {
           onChange={event => updatePage(item.page, event.target.value)} rows={8} maxLength={120000}
           spellCheck={false} />
       </div>)}
+      {showTableEditor && <Suspense fallback={<p role="status">Opening table review…</p>}>
+        <OcrTableEditor pages={pages} />
+      </Suspense>}
     </section>}
     <p className="ocr-back"><Link to="/"><FiArrowLeft /> Back to all tools</Link></p>
   </div>;
