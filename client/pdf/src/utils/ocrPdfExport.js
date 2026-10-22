@@ -64,3 +64,48 @@ export async function makeSearchablePdf(file, analyzedPages) {
   const bytes = await pdf.save();
   return new Blob([bytes], { type: 'application/pdf' });
 }
+
+
+// Phone photos are not PDFs. Build a new one-page PDF locally with the
+// downscaled camera image as a visible background and extracted word positions
+// as an invisible searchable layer. No image is uploaded to the backend.
+export async function makeSearchablePdfFromPhoto(photo, recognized) {
+  if (!photo || !['image/jpeg', 'image/png'].includes(photo.type) ||
+      !recognized || !Array.isArray(recognized.words) || !recognized.words.length ||
+      recognized.words.length > 2500 || !recognized.dimensions) {
+    throw new Error('Recognize a supported photo before searchable PDF export');
+  }
+  const dims = recognized.dimensions;
+  if (!Number.isFinite(dims.width) || !Number.isFinite(dims.height) ||
+      dims.width < 1 || dims.height < 1) throw new Error('Invalid photo size');
+  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+  const pdf = await PDFDocument.create();
+  const bytes = new Uint8Array(await photo.arrayBuffer());
+  const img = photo.type === 'image/png'
+    ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+  const factor = Math.min(1, 842 / dims.width, 842 / dims.height);
+  const width = dims.width * factor;
+  const height = dims.height * factor;
+  const page = pdf.addPage([width, height]);
+  page.drawImage(img, { x: 0, y: 0, width, height });
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  let added = 0;
+  for (const word of recognized.words) {
+    if (!word || ![word.left, word.top, word.height].every(Number.isFinite) ||
+        word.left < 0 || word.top < 0 || word.height <= 0 ||
+        word.left >= dims.width || word.top >= dims.height) continue;
+    const text = String(word.text || '').normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '').slice(0, 120);
+    if (!text) continue;
+    page.drawText(text, {
+      x: Math.max(0, Math.min(width - 1, word.left * factor)),
+      y: Math.max(0, Math.min(height - 1, height - (word.top + word.height) * factor)),
+      size: Math.max(4, Math.min(60, word.height * factor * 0.85)),
+      font, opacity: 0, color: rgb(0, 0, 0),
+    });
+    added++;
+  }
+  if (!added) throw new Error('No valid OCR words to position');
+  const saved = await pdf.save();
+  return new Blob([saved], { type: 'application/pdf' });
+}
