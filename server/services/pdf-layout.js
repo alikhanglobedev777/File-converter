@@ -1,5 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { extractGraphics, parseRgbColor } = require('./pdf-graphics');
 
 async function openPdf(filename) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -96,16 +97,16 @@ async function extractLayout(page) {
   const viewport = page.getViewport({ scale: 1 });
   const operators = await page.getOperatorList();
   const content = await page.getTextContent();
-  const rectangles = [], colors = new Map(), stack = [];
+  const graphics = extractGraphics(operators, OPS, Util, viewport);
+  const colors = new Map(), stack = [];
   let state = { matrix: [1, 0, 0, 1, 0, 0], fill: '000000', stroke: '000000', lineWidth: 1, font: '' };
-  const hex = value => typeof value === 'string' ? value.replace('#', '').toUpperCase() : '000000';
   for (let i = 0; i < operators.fnArray.length; i++) {
     const op = operators.fnArray[i], args = operators.argsArray[i];
     if (op === OPS.save) stack.push({ ...state, matrix: [...state.matrix] });
     else if (op === OPS.restore) state = stack.pop() || state;
     else if (op === OPS.transform) state.matrix = Util.transform(state.matrix, args);
-    else if (op === OPS.setFillRGBColor) state.fill = hex(args[0]);
-    else if (op === OPS.setStrokeRGBColor) state.stroke = hex(args[0]);
+    else if (op === OPS.setFillRGBColor) state.fill = parseRgbColor(args, state.fill);
+    else if (op === OPS.setStrokeRGBColor) state.stroke = parseRgbColor(args, state.stroke);
     else if (op === OPS.setLineWidth) state.lineWidth = args[0];
     else if (op === OPS.setFont) state.font = args[0];
     else if (op === OPS.showText) {
@@ -113,24 +114,6 @@ async function extractLayout(page) {
       const key = `${state.font}:${text}`;
       if (!colors.has(key)) colors.set(key, []);
       colors.get(key).push(state.fill);
-    } else if (op === OPS.constructPath) {
-      const [paint, paths] = args;
-      for (const data of paths || []) {
-        if (data.length !== 13 || data[0] !== 0 || data[3] !== 1 || data[6] !== 1 || data[9] !== 1 || data[12] !== 4) continue;
-        const matrix = Util.transform(viewport.transform, state.matrix);
-        const corners = [1, 4, 7, 10].map(j => {
-          const point = [data[j], data[j + 1]];
-          Util.applyTransform(point, matrix);
-          return point;
-        });
-        const xs = corners.map(p => p[0]), ys = corners.map(p => p[1]);
-        const x = Math.min(...xs), y = Math.min(...ys);
-        const width = Math.max(...xs) - x, height = Math.max(...ys) - y;
-        if (width < 8 || height < 8 || !corners.every(p => (Math.abs(p[0] - x) < 0.5 || Math.abs(p[0] - x - width) < 0.5) && (Math.abs(p[1] - y) < 0.5 || Math.abs(p[1] - y - height) < 0.5))) continue;
-        const fill = [OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke].includes(paint);
-        const stroke = [OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke].includes(paint);
-        if (fill || stroke) rectangles.push({ x, y, width, height, fill: fill ? state.fill : null, stroke: stroke ? state.stroke : null, lineWidth: state.lineWidth });
-      }
     }
   }
   const items = content.items.filter(item => item.str?.trim()).map(item => {
@@ -140,14 +123,18 @@ async function extractLayout(page) {
     const size = Math.hypot(matrix[2], matrix[3]) || item.height || 10;
     const name = font?.name || content.styles[item.fontName]?.fontFamily || 'Arial';
     return {
-      text: item.str.trim(), x: matrix[4], y: matrix[5] - size * 0.8, width: item.width, size,
+      text: item.str, x: matrix[4], y: matrix[5] - size * 0.8, width: item.width, size,
       font: /times|serif/i.test(name) && !/sans/i.test(name) ? 'Times New Roman' : /courier|mono/i.test(name) ? 'Courier New' : 'Arial',
       bold: !!font?.bold || /bold/i.test(name), italic: !!font?.italic || /italic|oblique/i.test(name),
       color: colors.get(`${item.fontName}:${item.str.trim()}`)?.shift() || '000000',
     };
   });
-  const cells = rectangles.filter(rect => rectangles.some(other => other !== rect && Math.abs(other.y - rect.y) < 1 && Math.abs(other.height - rect.height) < 1));
-  return { width: viewport.width, height: viewport.height, items, cells };
+  const cells = graphics.rectangles.filter(rect =>
+    graphics.rectangles.some(other => other !== rect &&
+      Math.abs(other.y - rect.y) < 1 &&
+      Math.abs(other.height - rect.height) < 1));
+  return { width: viewport.width, height: viewport.height, items, cells,
+    graphics };
 }
 
 module.exports = { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems, positionedLines, isTableLayout };
