@@ -31,7 +31,10 @@ export function requestConversion(url, formData, { signal, token, onProgress = (
         let details = {};
         try { details = JSON.parse(await blob.text()); } catch { /* safe fallback */ }
         const specific = { 429: 'Too many conversion requests. Wait a few minutes and retry.', 503: 'The converter is busy or waking up. Retry shortly.', 504: 'This conversion took too long. Try a smaller file.', 413: 'Upload too large for the server.' };
-        const error = new Error(details.error || specific[xhr.status] || `Conversion failed (HTTP ${xhr.status}).`);
+        const reference = typeof details.errorId === 'string' &&
+          /^[a-f0-9-]{36}$/i.test(details.errorId)
+          ? ` Reference: ${details.errorId}` : '';
+        const error = new Error((details.error || specific[xhr.status] || `Conversion failed (HTTP ${xhr.status}).`) + reference);
         error.status = xhr.status;
         return finish(error);
       }
