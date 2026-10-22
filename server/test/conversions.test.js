@@ -120,7 +120,8 @@ test('PDF to Excel preserves editable table values, styles, and all pages', asyn
     const data = values.join(' ');
     for (const value of ['Area', 'Quantity', 'Rate', 'Attock', '6267', '0'])
       assert.ok(data.includes(value), 'missing native Excel cell: ' + value);
-    assert.ok(cells.some(cell => cell.value === 0.553 && cell.numFmt === '0.0%'));
+    assert.ok(cells.some(cell => typeof cell.value === 'number' &&
+      Math.abs(cell.value - 0.553) < 1e-10 && cell.numFmt === '0.0%'));
     assert.ok(cells.some(cell => cell.font?.bold), 'header text should retain boldness');
     assert.ok(cells.some(cell => cell.fill?.fgColor?.argb === 'FF112233'),
       'header background should remain editable cell styling');
