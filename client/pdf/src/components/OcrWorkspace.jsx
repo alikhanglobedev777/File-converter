@@ -8,6 +8,7 @@ import {
 } from "../utils/ocrLimits";
 import "./OcrWorkspace.css";
 import { validateDownload } from "../utils/downloadFormat";
+import { parseOcrTsv, makeSearchablePdf } from "../utils/ocrPdfExport";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
@@ -31,6 +32,7 @@ export default function OcrWorkspace() {
   const [pageProgress, setPageProgress] = useState(null);
   const [partial, setPartial] = useState(false);
   const [exportingWord, setExportingWord] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const generationRef = useRef(0);
   const workerRef = useRef(null);
   const loadingRef = useRef(null);
@@ -98,6 +100,8 @@ export default function OcrWorkspace() {
           if (run !== generationRef.current) return;
           let text = content.items.map(item => item.str || "").join(" ").trim();
           let method = "Selectable PDF text";
+          let words = [];
+          let dimensions = null;
           if (text.replace(/\s/g, "").length < 24) {
             method = "OCR recognition";
             if (!worker) {
@@ -132,15 +136,17 @@ export default function OcrWorkspace() {
               await page.render({ canvas, canvasContext: context, viewport: rendered,
                 background: "#ffffff" }).promise;
               if (run !== generationRef.current) return;
-              const recognized = await worker.recognize(canvas);
+              const recognized = await worker.recognize(canvas, {}, { tsv: true });
               if (run !== generationRef.current) return;
               text = recognized.data.text || "";
+              words = parseOcrTsv(recognized.data.tsv);
+              dimensions = { width: canvas.width, height: canvas.height };
             } finally {
               canvas.width = 0;
               canvas.height = 0;
             }
           }
-          results.push({ page: n, text: safeOcrText(text), method });
+          results.push({ page: n, text: safeOcrText(text), method, words, dimensions });
           if (run === generationRef.current) setPages([...results]);
         } finally {
           page.cleanup();
@@ -194,6 +200,24 @@ export default function OcrWorkspace() {
     }
   };
 
+  // Uses initial OCR word coordinates; review text changes cannot be aligned.
+  const exportPdf = async () => {
+    if (!file || running || exportingPdf || !pages.length) return;
+    setExportingPdf(true);
+    setError("");
+    try {
+      const blob = await makeSearchablePdf(file, pages);
+      await validateDownload("ocr-searchable-pdf", {
+        headers: { get: name => name.toLowerCase() === "content-type" ? "application/pdf" : null },
+      }, blob, file.name);
+      saveBlob(blob, textDownloadName(file.name, "pdf"));
+    } catch {
+      setError("Could not create a searchable PDF. Try an unrotated, clearer scan or download Word.");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const stopOcr = () => {
     abort();
     setRunning(false);
@@ -239,7 +263,12 @@ export default function OcrWorkspace() {
         </button>
         <button type="button" className="button" onClick={exportWord} disabled={running || exportingWord}>
           <FiDownload /> {exportingWord ? "Creating Word…" : "Download editable Word"}
-        </button></div>
+        </button>
+        {pages.some(item => item.words?.length > 0) && <button type="button" className="button"
+          onClick={exportPdf} disabled={running || exportingPdf}>
+          <FiDownload /> {exportingPdf ? "Creating searchable PDF…" : "Download searchable PDF"}
+        </button>}</div>
+      {pages.some(item => item.words?.length > 0) && <p className="ocr-export-privacy">Searchable PDF is created on your device and preserves original page appearance. Its text uses initial OCR positions; textarea edits only affect TXT/Word.</p>}
       <p className="ocr-export-privacy">Word export sends only your reviewed text to the AK Converter server to create a DOCX. The original scanned PDF stays on your device.</p>
       {pages.map(item => <div className="ocr-page-result" key={item.page}>
         <label htmlFor={"ocr-result-" + item.page}>Page {item.page} · {item.method}</label>
