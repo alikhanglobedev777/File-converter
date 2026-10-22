@@ -95,7 +95,7 @@ export default function FileConverter({ service }) {
       return;
     }
     setFiles(next);
-    if (service === "pdf-to-jpg") setJpgPage("1");
+    if ((service === "pdf-to-jpg" || service === "pdf-to-png")) setJpgPage("1");
     if (service === "pdf-splitter") setSplitPages("1-2");
     if (service === "pdf-organizer") {
       setOrganizerPages("1");
@@ -142,10 +142,10 @@ export default function FileConverter({ service }) {
   };
 
   const addToolSpecificFields = (formData) => {
-    if (service === "pdf-to-jpg") {
+    if ((service === "pdf-to-jpg" || service === "pdf-to-png")) {
       formData.append('page', jpgPage);
-      formData.append('quality', jpgQuality);
       formData.append('scale', jpgScale);
+      if (service === "pdf-to-jpg") formData.append('quality', jpgQuality);
     }
     if (service === 'pdf-compressor') formData.append('level', compressionLevel);
     if (service === 'excel-to-pdf') {
@@ -160,7 +160,7 @@ export default function FileConverter({ service }) {
   };
 
   const validateToolSpecificInput = () => {
-    if (service === "pdf-to-jpg" && (!/^[1-9]\d*$/.test(jpgPage) || !Number.isSafeInteger(Number(jpgPage)))) {
+    if ((service === "pdf-to-jpg" || service === "pdf-to-png") && (!/^[1-9]\d*$/.test(jpgPage) || !Number.isSafeInteger(Number(jpgPage)))) {
       return "Enter a valid page number (1 or higher).";
     }
     if (service === "pdf-splitter" && !splitPages.trim()) return "Enter the pages you want to keep, for example 1-3,5.";
@@ -234,8 +234,8 @@ export default function FileConverter({ service }) {
       setFeedback({ kind: 'info', text: `Stopped. ${success} of ${jobs.length} file(s) completed.` });
     } else if (failures) {
       setFeedback({ kind: 'error', text: `${success} succeeded; ${failures} failed. Review the results below. Your selection remains available for retry.` });
-    } else if (service === 'pdf-to-jpg') {
-      setFeedback({ kind: 'success', text: `Page ${jpgPage} saved. Change the page number and convert again for another JPG.` });
+    } else if (service === 'pdf-to-jpg' || service === 'pdf-to-png') {
+      setFeedback({ kind: 'success', text: `Page ${jpgPage} saved. Change the page number and convert again for another ${service === 'pdf-to-png' ? 'PNG' : 'JPG'}.` });
     } else {
       setFeedback({ kind: 'success', text: `Completed ${success} download${success === 1 ? '' : 's'}. Check your Downloads folder.` });
       setFiles([]);
@@ -304,9 +304,9 @@ export default function FileConverter({ service }) {
 
             <div className="upload-requirements"><span><FiInfo aria-hidden="true" /> {tool.inputLabel}</span><span>50 MB max per file</span>{multi && <span>Up to {tool.maxFiles} files</span>}</div>
 
-            {service === "pdf-to-jpg" && (
+            {(service === "pdf-to-jpg" || service === "pdf-to-png") && (
               <div className="jpg-page-picker">
-                <label htmlFor="jpg-page-number">Page number to export as JPG</label>
+                <label htmlFor="jpg-page-number">Page number to export as {service === "pdf-to-png" ? "PNG" : "JPG"}</label>
                 <input
                   id="jpg-page-number"
                   type="number"
@@ -320,9 +320,9 @@ export default function FileConverter({ service }) {
                 />
                 <div className="export-settings-row">
                   <label htmlFor="jpg-scale">Resolution<select id="jpg-scale" value={jpgScale} disabled={loading} onChange={e => setJpgScale(e.target.value)}><option value="1">Standard</option><option value="1.5">High</option><option value="2">Very high</option></select></label>
-                  <label htmlFor="jpg-quality">JPEG quality<select id="jpg-quality" value={jpgQuality} disabled={loading} onChange={e => setJpgQuality(e.target.value)}><option value="65">Smaller</option><option value="80">Balanced</option><option value="90">Best</option></select></label>
+                  {service === "pdf-to-jpg" && <label htmlFor="jpg-quality">JPEG quality<select id="jpg-quality" value={jpgQuality} disabled={loading} onChange={e => setJpgQuality(e.target.value)}><option value="65">Smaller</option><option value="80">Balanced</option><option value="90">Best</option></select></label>}
                 </div>
-                <p>One JPG per conversion. Choose a page, resolution and image quality. Higher settings may increase file size.</p>
+                <p>{service === "pdf-to-png" ? "One lossless PNG per conversion. Choose a page and resolution; larger images use more storage." : "One JPG per conversion. Choose a page, resolution and image quality. Higher settings may increase file size."}</p>
               </div>
             )}
 
