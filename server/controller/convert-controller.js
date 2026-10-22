@@ -3,6 +3,7 @@ const { randomUUID } = require('node:crypto');
 const { convertPdfToExcel } = require('../services/pdfToExcel-service');
 const { convertPdfToWord } = require('../services/pdfToword-service');
 const { convertPdfToJpg, PdfPageSelectionError } = require('../services/pdfToJpg-service');
+const { convertPdfToPng } = require('../services/pdfToPng-service');
 const { convertPdfToPpt } = require('../services/pdfTopowerpoint-service');
 const { convertExcelToPdf } = require('../services/excelTopdf-service');
 const { convertExcelToWord } = require('../services/excelTOword-service');
@@ -27,7 +28,7 @@ function conversion(service, convert, { multiple = false, minimum = 1, name } = 
       output = await convert(multiple ? files : files[0].path, req, files);
       const { extension, contentType } = await verifyOutputFormat(service, output);
       const base = name || path.parse(path.basename((files[0].originalname || 'converted').replace(/\\/g, '/'))).name;
-      const pageSuffix = service === 'pdf-to-jpg' && Number(req.body.page || 1) > 1
+      const pageSuffix = (service === 'pdf-to-jpg' || service === 'pdf-to-png') && Number(req.body.page || 1) > 1
         ? `-page-${String(req.body.page).padStart(3, '0')}` : '';
       const downloadName = `${base}${pageSuffix}.${extension}`;
       res.set({ 'Content-Type': contentType, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
@@ -74,6 +75,7 @@ function conversion(service, convert, { multiple = false, minimum = 1, name } = 
 exports.pdfToExcel = conversion('pdf-to-excel', convertPdfToExcel);
 exports.pdfToWord = conversion('pdf-to-word', convertPdfToWord);
 exports.pdfToJpg = conversion('pdf-to-jpg', (inputPath, req) => convertPdfToJpg(inputPath, req.body.page ?? '1', { scale: req.body.scale ?? '2', quality: req.body.quality ?? '90' }));
+exports.pdfToPng = conversion('pdf-to-png', (inputPath, req) => convertPdfToPng(inputPath, req.body.page ?? '1', { scale: req.body.scale ?? '2' }));
 exports.pdfToPpt = conversion('pdf-to-ppt', convertPdfToPpt);
 exports.excelToPdf = conversion('excel-to-pdf', (inputPath, req) => convertExcelToPdf(inputPath, { paperSize: req.body.paperSize ?? 'A4', orientation: req.body.orientation ?? 'auto' }));
 exports.excelToWord = conversion('excel-to-word', convertExcelToWord);
