@@ -23,7 +23,7 @@ function passwordResetUrl(token, env = process.env) {
   if (base.username || base.password || base.search || base.hash) {
     throw new Error('Invalid PASSWORD_RESET_BASE_URL');
   }
-  return new URL('/reset-password?token=' + encodeURIComponent(token), base.origin).toString();
+  return new URL('/reset-password#token=' + encodeURIComponent(token), base.origin).toString();
 }
 
 async function sendPasswordResetEmail({ toEmail, toName, token }, {
