@@ -1,0 +1,45 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import {
+  OCR_MAX_FILE_BYTES, OCR_MAX_PAGES, OCR_MAX_PIXELS,
+  isSupportedOcrFile, selectedOcrPages, boundedPageScale,
+  safeOcrText, assembleOcrText, textDownloadName,
+} from "../src/utils/ocrLimits.js";
+
+test("OCR input is limited to nonempty PDFs under 20MB", () => {
+  assert.ok(isSupportedOcrFile({ name: "scan.PDF", size: 1024 }));
+  assert.equal(isSupportedOcrFile({ name: "text.txt", size: 1024 }), false);
+  assert.equal(isSupportedOcrFile({ name: "empty.pdf", size: 0 }), false);
+  assert.equal(isSupportedOcrFile({ name: "large.pdf", size: OCR_MAX_FILE_BYTES + 1 }), false);
+});
+
+test("OCR pages are limited to the first five and pixel budget caps canvas scale", () => {
+  assert.deepEqual(selectedOcrPages(2), [1, 2]);
+  assert.deepEqual(selectedOcrPages(90), [1, 2, 3, 4, 5]);
+  assert.equal(selectedOcrPages(0).length, 0);
+  assert.equal(OCR_MAX_PAGES, 5);
+  const scale = boundedPageScale(600, 800, 2);
+  assert.ok(600 * 800 * scale * scale <= OCR_MAX_PIXELS + 1);
+  assert.throws(() => boundedPageScale(0, 800));
+});
+
+test("OCR output is bounded, editable by page and filenames are safe", () => {
+  assert.equal(safeOcrText("a\u0000b"), "ab");
+  assert.equal(safeOcrText("x".repeat(130000)).length, 120000);
+  assert.match(assembleOcrText([{ page: 1, text: "Heading" }, { page: 2, text: "Body" }]), /Page 1[\s\S]+Page 2/);
+  assert.equal(textDownloadName("../../private/my scan.pdf"), "my scan-ocr.txt");
+  assert.equal(textDownloadName("résumé.pdf"), "r_sum_-ocr.txt");
+});
+
+test("OCR UI runs separately, cancels workers and never posts PDF bytes to an API", async () => {
+  const source = await readFile(new URL("../src/components/OcrWorkspace.jsx", import.meta.url), "utf8");
+  assert.match(source, /import\("tesseract.js"\)/);
+  assert.match(source, /worker\.recognize\(canvas\)/);
+  assert.match(source, /worker\?\.terminate\(\)/);
+  assert.match(source, /loading\?\.destroy\(\)/);
+  assert.match(source, /Download editable TXT/);
+  assert.doesNotMatch(source, /\bfetch\s*\(|\bXMLHttpRequest\b|FormData/);
+  const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(app, /path="\/ocr"/);
+});
