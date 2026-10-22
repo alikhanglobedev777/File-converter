@@ -223,7 +223,7 @@
   .organizer-visual__actions button { min-height:40px; }
 }
 
-.save-to-files { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 13px; border: 1px solid var(--line); background: #f5f9ff; border-radius: 10px; margin: 12px 0; }
+.save-to-files { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 13px; border: 1px solid var(--line); background: #fff; border-radius: 10px; margin: 12px 0; }
 .save-to-files .button { min-height: 42px; display: inline-flex; gap: 8px; align-items: center; }
 .save-to-files a { font-size: 12px; font-weight: 700; color: var(--blue); display: inline-flex; align-items: center; gap: 5px; }
 .save-to-files small { font-size: 11px; color: var(--muted); }
