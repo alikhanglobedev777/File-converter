@@ -14,7 +14,7 @@ test('reset-password verifies six digits before allowing a new password', async 
   const source = await readFile(new URL('../src/components/ResetPassword.jsx', import.meta.url), 'utf8');
   assert.match(source, /api\/auth\/verify-reset-code/);
   assert.match(source, /api\/auth\/reset-password/);
-  assert.match(source, /[0-9]\{6\}/);
+  assert.ok(source.includes('pattern="[0-9]{6}"'));
   assert.match(source, /setResetToken\(data\.resetToken\)/);
   assert.match(source, /\{resetToken && <form/);
   assert.doesNotMatch(source, /window\.location\.hash/);
