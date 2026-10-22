@@ -12,6 +12,7 @@ const { connectDatabase } = require("./config/database");
 const convertRoutes = require("./routes/convert-route");
 const authRoutes = require("./routes/auth-route");
 const historyRoutes = require("./routes/history-route");
+const { router: ocrRoutes } = require("./routes/ocr-route");
 
 const app = express();
 
@@ -48,6 +49,7 @@ ensureFolderExists(path.join(__dirname, "outputs"));
 app.use("/api/convert", convertRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/history", historyRoutes);
+app.use("/api/ocr", ocrRoutes);
 
 // ===== Test Route =====
 app.get("/test", (req, res) => res.send("Server is working"));
