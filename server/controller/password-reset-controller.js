@@ -55,8 +55,12 @@ function createPasswordResetHandlers({
       const code = newSixDigitCode();
       const codeHash = hashCodeForUser(email, code);
       // Atomic per-account cooldown prevents concurrent reset-email floods.
+      // Recheck the *same registered email* in the atomic database update
+      // immediately before mailing. If this account was removed or the email
+      // changed after findOne, do not issue or send a code.
       const updated = await UserModel.updateOne({
         _id: user._id,
+        email: user.email,
         $or: [
           { passwordResetRequestedAt: { $exists: false } },
           { passwordResetRequestedAt: { $lte: new Date(now - RESET_COOLDOWN_MS) } },
