@@ -16,3 +16,5 @@
 .ocr-page-result textarea:focus { outline: 2px solid var(--blue); outline-offset: 2px; }
 .ocr-back { margin: 22px 0; }
 .ocr-back a { color: var(--blue); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+.ocr-results__heading > button { min-height: 42px; }
+.ocr-export-privacy { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 16px; }
