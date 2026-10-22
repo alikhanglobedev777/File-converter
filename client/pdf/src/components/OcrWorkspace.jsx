@@ -13,6 +13,7 @@ import { parseOcrTsv, makeSearchablePdf, makeSearchablePdfFromPhoto } from "../u
 import { decodeOcrPhoto, drawablePhoto } from "../utils/ocrPhoto";
 import OcrCameraInput from "./OcrCameraInput.jsx";
 const OcrTableEditor = lazy(() => import("./OcrTableEditor.jsx"));
+const DocumentPhotoEnhancer = lazy(() => import("./DocumentPhotoEnhancer.jsx"));
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
@@ -40,6 +41,7 @@ export default function OcrWorkspace() {
   const [showTableEditor, setShowTableEditor] = useState(false);
   const [photoJpeg, setPhotoJpeg] = useState(null);
   const [photoPreview, setPhotoPreview] = useState("");
+  const [enhancerOpen, setEnhancerOpen] = useState(false);
   const generationRef = useRef(0);
   const workerRef = useRef(null);
   const loadingRef = useRef(null);
@@ -69,6 +71,7 @@ export default function OcrWorkspace() {
     abort();
     setRunning(false);
     setFile(null);
+    setEnhancerOpen(false);
     setPhotoJpeg(null);
     setPages([]);
     setShowTableEditor(false);
@@ -313,7 +316,17 @@ export default function OcrWorkspace() {
       <OcrCameraInput onPhoto={chooseFile} selectedFile={file} disabled={running || exportingWord || exportingPdf} />
       <p><FiInfo aria-hidden="true" /> First {OCR_MAX_PAGES} PDF pages, or one photo. English printed text. Up to 20 MB per PDF or 10 MB per photo. Recognition happens on your device; the English OCR model downloads on first use.</p>
       {file && <p className="ocr-file"><FiFileText /> {file.name} · {(file.size / 1048576).toFixed(1)} MB · {isImageOcrFile(file) ? "Photo" : "PDF"}</p>}
-      {photoPreview && <img className="ocr-photo-preview" src={photoPreview} alt="Selected document photo" />}
+      {photoPreview && <div className="ocr-photo-selected">
+        <img className="ocr-photo-preview" src={photoPreview} alt="Selected document photo" />
+        <button className="button button--primary" type="button" disabled={running}
+          onClick={() => setEnhancerOpen(open => !open)}>
+          {enhancerOpen ? "Close photo enhancer" : "Enhance photo before OCR"}
+        </button>
+      </div>}
+      {enhancerOpen && isImageOcrFile(file) && <Suspense fallback={<p role="status">Opening photo enhancer…</p>}>
+        <DocumentPhotoEnhancer file={file} onClose={() => setEnhancerOpen(false)}
+          onApply={enhanced => { chooseFile(enhanced); setStatus("Enhanced photo ready. Click Recognize text."); }} />
+      </Suspense>}
       {error && <p className="auth-status auth-status--error" role="alert">{error}</p>}
       {status && <p className="auth-status" role="status">{status}</p>}
       {partial && <p className="auth-status">Only the first {OCR_MAX_PAGES} pages were processed. This first release does not process the remaining pages.</p>}
