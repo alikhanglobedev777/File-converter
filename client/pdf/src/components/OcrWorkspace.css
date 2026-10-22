@@ -33,3 +33,14 @@
 .ocr-table-scroll td input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
 .ocr-table-scroll td button { background: transparent; color: #c33; padding: 8px; border: 0; cursor: pointer; }
 @media (max-width: 600px) { .ocr-table-editor { padding: 13px; } }
+
+.ocr-camera { margin: 18px 0; border: 1px solid var(--line); border-radius: 12px; padding: 18px; background: #f8fbff; }
+.ocr-camera__actions, .ocr-camera__controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ocr-camera__actions .button, .ocr-camera__controls .button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; }
+.ocr-camera__hidden { display: none !important; }
+.ocr-camera__viewfinder { display: grid; gap: 12px; margin: 15px 0 0; }
+.ocr-camera__viewfinder video { display: block; width: 100%; max-height: 440px; border-radius: 10px; background: #111827; object-fit: contain; }
+.ocr-camera__message { font-size: 12px; color: #9b332a; font-weight: 650; }
+.ocr-camera__hint { margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.ocr-photo-preview { display: block; max-width: min(100%, 440px); max-height: 300px; width: auto; height: auto; object-fit: contain; margin: 12px 0 18px; border: 1px solid var(--line); border-radius: 10px; }
+@media (max-width: 600px) { .ocr-camera { padding: 13px; } .ocr-camera__actions .button { flex: 1 1 150px; } }

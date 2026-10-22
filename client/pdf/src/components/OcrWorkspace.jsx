@@ -3,12 +3,15 @@ import { Link } from "react-router-dom";
 import { FiArrowLeft, FiDownload, FiFileText, FiInfo, FiX } from "react-icons/fi";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
-  OCR_MAX_FILE_BYTES, OCR_MAX_PAGES, isSupportedOcrFile, boundedPageScale,
+  OCR_MAX_FILE_BYTES, OCR_MAX_IMAGE_BYTES, OCR_MAX_PAGES, isSupportedOcrFile,
+  isImageOcrFile, boundedPageScale, boundedImageDimensions,
   safeOcrText, assembleOcrText, selectedOcrPages, textDownloadName,
 } from "../utils/ocrLimits";
 import "./OcrWorkspace.css";
 import { validateDownload } from "../utils/downloadFormat";
-import { parseOcrTsv, makeSearchablePdf } from "../utils/ocrPdfExport";
+import { parseOcrTsv, makeSearchablePdf, makeSearchablePdfFromPhoto } from "../utils/ocrPdfExport";
+import { decodeOcrPhoto, drawablePhoto } from "../utils/ocrPhoto";
+import OcrCameraInput from "./OcrCameraInput.jsx";
 const OcrTableEditor = lazy(() => import("./OcrTableEditor.jsx"));
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
@@ -35,6 +38,8 @@ export default function OcrWorkspace() {
   const [exportingWord, setExportingWord] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [showTableEditor, setShowTableEditor] = useState(false);
+  const [photoJpeg, setPhotoJpeg] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState("");
   const generationRef = useRef(0);
   const workerRef = useRef(null);
   const loadingRef = useRef(null);
@@ -50,10 +55,21 @@ export default function OcrWorkspace() {
   };
   useEffect(() => () => { abort(); }, []);
 
+  useEffect(() => {
+    if (!isImageOcrFile(file)) {
+      setPhotoPreview("");
+      return undefined;
+    }
+    const url = URL.createObjectURL(file);
+    setPhotoPreview(url);
+    return () => { URL.revokeObjectURL(url); setPhotoPreview(""); };
+  }, [file]);
+
   const chooseFile = (item) => {
     abort();
     setRunning(false);
     setFile(null);
+    setPhotoJpeg(null);
     setPages([]);
     setShowTableEditor(false);
     setPartial(false);
@@ -62,8 +78,9 @@ export default function OcrWorkspace() {
     setPageProgress(null);
     if (!item) return;
     if (!isSupportedOcrFile(item)) {
-      setError("Choose a non-empty PDF no larger than " +
-        Math.round(OCR_MAX_FILE_BYTES / 1048576) + " MB.");
+      setError("Choose a PDF under " + Math.round(OCR_MAX_FILE_BYTES / 1048576) +
+        " MB or a JPEG, PNG, or WebP photo under " +
+        Math.round(OCR_MAX_IMAGE_BYTES / 1048576) + " MB.");
       return;
     }
     setFile(item);
@@ -75,13 +92,60 @@ export default function OcrWorkspace() {
     setRunning(true);
     setError("");
     setPages([]);
+    setPhotoJpeg(null);
     setShowTableEditor(false);
     setPartial(false);
     setPageProgress(null);
-    setStatus("Opening PDF on your device…");
+    setStatus(isImageOcrFile(file) ? "Preparing your photo on this device…" : "Opening PDF on your device…");
     let worker = null;
     let loading = null;
     try {
+      if (isImageOcrFile(file)) {
+        const decoded = await decodeOcrPhoto(file);
+        let canvas = null;
+        try {
+          if (run !== generationRef.current) return;
+          const { width, height } = boundedImageDimensions(decoded.width, decoded.height);
+          canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d", { alpha: false });
+          if (!context) throw new Error("Canvas unavailable");
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, width, height);
+          context.drawImage(drawablePhoto(decoded), 0, 0, width, height);
+          setStatus("Loading English OCR into your browser…");
+          const { createWorker } = await import("tesseract.js");
+          if (run !== generationRef.current) return;
+          worker = await createWorker("eng", 1, {
+            logger: detail => {
+              if (run !== generationRef.current) return;
+              if (detail.status === "recognizing text" && Number.isFinite(detail.progress)) {
+                setPageProgress(Math.round(detail.progress * 100));
+              }
+            },
+          });
+          if (run !== generationRef.current) return;
+          workerRef.current = worker;
+          setStatus("Recognizing photo text…");
+          const result = await worker.recognize(canvas, {}, { tsv: true });
+          if (run !== generationRef.current) return;
+          const jpeg = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.88));
+          if (!jpeg) throw new Error("Could not prepare photo PDF background");
+          if (run !== generationRef.current) return;
+          setPhotoJpeg(jpeg);
+          setPages([{ page: 1, text: safeOcrText(result.data.text),
+            method: "OCR recognition",
+            words: parseOcrTsv(result.data.tsv),
+            dimensions: { width, height } }]);
+          setStatus("Photo recognized. Review the text or download a document.");
+        } finally {
+          if (canvas) { canvas.width = 0; canvas.height = 0; }
+          decoded.close?.();
+        }
+        return;
+      }
+
       const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
       if (run !== generationRef.current) return;
       pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -206,11 +270,13 @@ export default function OcrWorkspace() {
 
   // Uses initial OCR word coordinates; review text changes cannot be aligned.
   const exportPdf = async () => {
-    if (!file || running || exportingPdf || !pages.length) return;
+    if (!file || running || exportingPdf || !pages.length || (isImageOcrFile(file) && !photoJpeg)) return;
     setExportingPdf(true);
     setError("");
     try {
-      const blob = await makeSearchablePdf(file, pages);
+      const blob = isImageOcrFile(file)
+        ? await makeSearchablePdfFromPhoto(photoJpeg, pages[0])
+        : await makeSearchablePdf(file, pages);
       await validateDownload("ocr-searchable-pdf", {
         headers: { get: name => name.toLowerCase() === "content-type" ? "application/pdf" : null },
       }, blob, file.name);
@@ -236,16 +302,18 @@ export default function OcrWorkspace() {
       <div className="page-heading__trail"><Link to="/">All tools</Link><span>/</span><strong>Scanned PDF OCR</strong></div>
       <div className="page-heading__row"><div className="page-heading__title-group">
         <span className="eyebrow">OPTIONAL · RUNS ON YOUR DEVICE</span>
-        <h1>Scanned PDF OCR</h1>
-        <p>Make scanned pages editable. Existing selectable PDF text is extracted directly.</p>
+        <h1>Scan a document or PDF</h1>
+        <p>Take a live photo, upload a picture, or select a PDF to extract editable text.</p>
       </div></div>
     </div>
     <div className="ocr-panel">
-      <label htmlFor="ocr-file"><strong>Choose a PDF</strong> (up to 20 MB)</label>
+      <label htmlFor="ocr-file"><strong>Upload a PDF</strong> (up to 20 MB)</label>
       <input id="ocr-file" type="file" accept=".pdf,application/pdf" disabled={running}
         onChange={event => { chooseFile(event.target.files?.[0] || null); event.target.value = ""; }} />
-      <p><FiInfo aria-hidden="true" /> First {OCR_MAX_PAGES} pages per run; printed English. The PDF and recognized text stay in your browser. The OCR engine and English model are downloaded on first use.</p>
-      {file && <p className="ocr-file"><FiFileText /> {file.name} · {(file.size / 1048576).toFixed(1)} MB</p>}
+      <OcrCameraInput onPhoto={chooseFile} selectedFile={file} disabled={running || exportingWord || exportingPdf} />
+      <p><FiInfo aria-hidden="true" /> First {OCR_MAX_PAGES} PDF pages, or one photo. English printed text. Up to 20 MB per PDF or 10 MB per photo. Recognition happens on your device; the English OCR model downloads on first use.</p>
+      {file && <p className="ocr-file"><FiFileText /> {file.name} · {(file.size / 1048576).toFixed(1)} MB · {isImageOcrFile(file) ? "Photo" : "PDF"}</p>}
+      {photoPreview && <img className="ocr-photo-preview" src={photoPreview} alt="Selected document photo" />}
       {error && <p className="auth-status auth-status--error" role="alert">{error}</p>}
       {status && <p className="auth-status" role="status">{status}</p>}
       {partial && <p className="auth-status">Only the first {OCR_MAX_PAGES} pages were processed. This first release does not process the remaining pages.</p>}
@@ -275,8 +343,8 @@ export default function OcrWorkspace() {
         <button type="button" className="button" onClick={() => setShowTableEditor(open => !open)}>
           {showTableEditor ? "Close Excel review" : "Review table for Excel"}
         </button></div>
-      {pages.some(item => item.words?.length > 0) && <p className="ocr-export-privacy">Searchable PDF is created on your device and preserves original page appearance. Its text uses initial OCR positions; textarea edits only affect TXT/Word.</p>}
-      <p className="ocr-export-privacy">Word export sends only your reviewed text to the AK Converter server to create a DOCX. The original scanned PDF stays on your device.</p>
+      {pages.some(item => item.words?.length > 0) && <p className="ocr-export-privacy">Searchable PDF is created on your device and preserves original page or photo appearance. Its text uses initial OCR positions; textarea edits only affect TXT/Word.</p>}
+      <p className="ocr-export-privacy">Word export sends only your reviewed text to the AK Converter server to create a DOCX. The original scanned PDF or photo stays on your device.</p>
       {pages.map(item => <div className="ocr-page-result" key={item.page}>
         <label htmlFor={"ocr-result-" + item.page}>Page {item.page} · {item.method}</label>
         <textarea id={"ocr-result-" + item.page} value={item.text}
