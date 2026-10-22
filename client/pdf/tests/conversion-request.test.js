@@ -41,3 +41,23 @@ test('logged-in conversions send their Bearer token without affecting guest uplo
   await requestConversion('/api/convert/pdf-to-word', {}, { xhrFactory });
   assert.equal(used.headers.Authorization, undefined);
 });
+
+
+test('server conversion exceptions include a reference ID for support', async () => {
+  const errorId = '12345678-aaaa-4bbb-8ccc-123456789abc';
+  const xhrFactory = () => ({
+    ...fakeXHR(),
+    send() {
+      this.status = 500;
+      this.response = new Blob([JSON.stringify({
+        error: 'The conversion server encountered an error.',
+        errorId,
+      })]);
+      this.onload();
+    },
+  });
+  await assert.rejects(
+    requestConversion('/api/convert/pdf-to-excel', {}, { xhrFactory }),
+    error => error.status === 500 && error.message.includes(errorId),
+  );
+});
