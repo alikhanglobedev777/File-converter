@@ -35,7 +35,7 @@ test("OCR output is bounded, editable by page and filenames are safe", () => {
 test("OCR UI runs separately; only explicit Word export posts reviewed text, not PDF bytes", async () => {
   const source = await readFile(new URL("../src/components/OcrWorkspace.jsx", import.meta.url), "utf8");
   assert.match(source, /import\("tesseract.js"\)/);
-  assert.match(source, /worker\.recognize\(canvas\)/);
+  assert.match(source, /worker\.recognize\(canvas, \{\}, \{ tsv: true \}\)/);
   assert.match(source, /worker\?\.terminate\(\)/);
   assert.match(source, /loading\?\.destroy\(\)/);
   assert.match(source, /Download editable TXT/);
