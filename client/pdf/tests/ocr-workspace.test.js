@@ -32,14 +32,17 @@ test("OCR output is bounded, editable by page and filenames are safe", () => {
   assert.equal(textDownloadName("résumé.pdf"), "r_sum_-ocr.txt");
 });
 
-test("OCR UI runs separately, cancels workers and never posts PDF bytes to an API", async () => {
+test("OCR UI runs separately; only explicit Word export posts reviewed text, not PDF bytes", async () => {
   const source = await readFile(new URL("../src/components/OcrWorkspace.jsx", import.meta.url), "utf8");
   assert.match(source, /import\("tesseract.js"\)/);
   assert.match(source, /worker\.recognize\(canvas\)/);
   assert.match(source, /worker\?\.terminate\(\)/);
   assert.match(source, /loading\?\.destroy\(\)/);
   assert.match(source, /Download editable TXT/);
-  assert.doesNotMatch(source, /\bfetch\s*\(|\bXMLHttpRequest\b|FormData/);
+  assert.match(source, /api\/ocr\/word/);
+  assert.match(source, /body: JSON.stringify\(\{ pages: pages.map/);
+  assert.match(source, /The original scanned PDF stays on your device/);
+  assert.doesNotMatch(source, /FormData|XMLHttpRequest/);
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
   assert.match(app, /path="\/ocr"/);
 });
