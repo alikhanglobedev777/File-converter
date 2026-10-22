@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter as Router, Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 import { ToastContainer } from "react-toastify";
@@ -9,12 +9,13 @@ import FileConverter from "./components/FileConverter";
 import Login from "./components/Login";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
+const OcrWorkspace = lazy(() => import("./components/OcrWorkspace.jsx"));
 import Signup from "./components/Signup";
 import History from "./components/History";
 import { services } from "./data/services";
 import { LAST_WORKSPACE_ROUTE_KEY, isKnownWorkspacePath, recoverWorkspacePath } from "./utils/routeContinuity";
 
-const workspacePaths = ["/", "/login", "/signup", "/history", "/forgot-password", ...services.map((tool) => `/${tool.id}`)];
+const workspacePaths = ["/", "/login", "/signup", "/history", "/forgot-password", "/ocr", ...services.map((tool) => `/${tool.id}`)];
 
 // A Render SPA fallback or browser tab restoration can land on /index.html.
 // Preserve the current *known* client route for this tab, and only restore a
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/history" element={<History />} />
+          <Route path="/ocr" element={<Suspense fallback={<p role="status">Loading OCR workspace…</p>}><OcrWorkspace /></Suspense>} />
           <Route path="/home" element={<Navigate to="/" replace />} />
           <Route path="/index.html" element={<RecoverIndexHtmlRoute />} />
           <Route path="*" element={<div className="not-found"><span className="eyebrow">PAGE NOT FOUND</span><h1>Looks like this page moved.</h1><p>The file tool you're looking for might be somewhere else.</p><Link to="/" className="button button--primary"><FiArrowLeft /> Back to workspace</Link></div>} />
