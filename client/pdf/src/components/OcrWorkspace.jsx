@@ -310,7 +310,7 @@ export default function OcrWorkspace() {
       <label htmlFor="ocr-file"><strong>Upload a PDF</strong> (up to 20 MB)</label>
       <input id="ocr-file" type="file" accept=".pdf,application/pdf" disabled={running}
         onChange={event => { chooseFile(event.target.files?.[0] || null); event.target.value = ""; }} />
-      <OcrCameraInput onPhoto={chooseFile} disabled={running || exportingWord || exportingPdf} />
+      <OcrCameraInput onPhoto={chooseFile} selectedFile={file} disabled={running || exportingWord || exportingPdf} />
       <p><FiInfo aria-hidden="true" /> First {OCR_MAX_PAGES} PDF pages, or one photo. English printed text. Up to 20 MB per PDF or 10 MB per photo. Recognition happens on your device; the English OCR model downloads on first use.</p>
       {file && <p className="ocr-file"><FiFileText /> {file.name} · {(file.size / 1048576).toFixed(1)} MB · {isImageOcrFile(file) ? "Photo" : "PDF"}</p>}
       {photoPreview && <img className="ocr-photo-preview" src={photoPreview} alt="Selected document photo" />}
