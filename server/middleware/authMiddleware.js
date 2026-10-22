@@ -11,7 +11,9 @@ exports.protect = async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id).select("-password");
-      if (!req.user) return res.status(401).json({ error: "Not authorized" });
+      if (!req.user || (decoded.rv ?? 0) !== (req.user.tokenVersion || 0)) {
+        return res.status(401).json({ error: "Session expired. Please log in again." });
+      }
       next();
     } catch (err) {
       res.status(401).json({ error: "Not authorized" });
@@ -30,7 +32,9 @@ exports.optionalProtect = async (req, res, next) => {
   try {
     const decoded = jwt.verify(match[1], process.env.JWT_SECRET);
     req.user = await User.findById(decoded.id).select("-password");
-    if (!req.user) return res.status(401).json({ error: "Session expired. Please log in again." });
+    if (!req.user || (decoded.rv ?? 0) !== (req.user.tokenVersion || 0)) {
+      return res.status(401).json({ error: "Session expired. Please log in again." });
+    }
     return next();
   } catch {
     return res.status(401).json({ error: "Session expired. Please log in again." });
