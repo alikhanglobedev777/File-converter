@@ -38,6 +38,11 @@ function hasZipTrailer(buffer) {
   }
   return false;
 }
+function isUtf8Text(buffer) {
+  if (buffer.includes(0)) return false;
+  try { new TextDecoder('utf-8', { fatal: true }).decode(buffer); return true; }
+  catch { return false; }
+}
 function validateSavedFile(file) {
   if (!file?.buffer || !Buffer.isBuffer(file.buffer) ||
       file.size < 1 || file.size > MAX_FILE_BYTES) return null;
@@ -51,7 +56,7 @@ function validateSavedFile(file) {
     : ext === 'png' ? starts('89504e470d0a1a0a') && data.subarray(-12).equals(Buffer.from('0000000049454e44ae426082','hex'))
     : ext === 'webp' ? data.subarray(0,4).toString() === 'RIFF' && data.subarray(8,12).toString() === 'WEBP'
     : ['docx', 'xlsx', 'pptx', 'zip'].includes(ext) ? starts('504b0304') && hasZipTrailer(data)
-    : ext === 'txt' ? !data.includes(0) && new TextDecoder('utf-8', { fatal: true }).decode(data).length <= MAX_FILE_BYTES
+    : ext === 'txt' ? isUtf8Text(data)
     : false;
   return result ? { name, mime: ALLOWED[ext], size: file.size } : null;
 }
