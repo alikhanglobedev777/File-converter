@@ -290,14 +290,14 @@ test('PDF to JPG always returns a JPEG and exports the requested page', async ()
 
 test('PDF to PNG exports genuine lossless per-page images with resolution control', async () => {
   const first = await convert('pdf-to-png', pdf, 'report.pdf');
-  assert.match(first.response.headers.get('content-disposition'), /report\\.png/);
+  assert.match(first.response.headers.get('content-disposition'), /report\.png/);
   assert.equal(first.response.headers.get('content-type'), 'image/png');
   const info = await sharp(first.buffer).metadata();
   assert.equal(info.format, 'png');
   assert.equal(info.width, 1200);
   assert.equal(info.height, 840);
   const second = await convert('pdf-to-png', pdf, 'report.pdf', false, { page: 2, scale: 1 });
-  assert.match(second.response.headers.get('content-disposition'), /report-page-002\\.png/);
+  assert.match(second.response.headers.get('content-disposition'), /report-page-002\.png/);
   const smaller = await sharp(second.buffer).metadata();
   assert.equal(smaller.format, 'png');
   assert.equal(smaller.width, 600);
