@@ -18,7 +18,7 @@ function makeRun(item, keepLightColor = false) {
   const original = String(item.color || '000000').replace('#', '');
   const rgb = /^[0-9A-F]{6}$/i.test(original) ? original : '000000';
   const channel = offset => parseInt(rgb.slice(offset, offset + 2), 16);
-  const luminance = channel(0) * 0.2126 + channel(2) * 0.0722 + channel(4) * 0.7152;
+  const luminance = channel(0) * 0.2126 + channel(2) * 0.7152 + channel(4) * 0.0722;
   // Text exported from a colored PDF band becomes illegible when that band
   // is omitted or Word uses a light background. Tables keep their shading.
   const textColor = !keepLightColor && luminance > 185
