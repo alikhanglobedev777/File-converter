@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { analyzePdf, diagnosticMessage } from "../utils/pdfScanAnalysis";
 
@@ -160,6 +161,7 @@ export default function PdfPreview({ file }) {
       )}
       {scanReport && <div className="pdf-preview__privacy" role="status">
         <strong>PDF text check:</strong> {diagnosticMessage(scanReport)}
+        {["likely-scanned", "mixed"].includes(scanReport.type) && <span> <Link to="/ocr">Recognize scanned text with OCR</Link>.</span>}
         {scanReport.partial && <span> Checked {scanReport.sampledPages} of {scanReport.totalPages} pages; other pages were not analyzed.</span>}
       </div>}
       <p className="pdf-preview__privacy">Previewed and checked on your device. Your file is only sent to the server when you start conversion.</p>
