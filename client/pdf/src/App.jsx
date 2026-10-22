@@ -10,12 +10,13 @@ import Login from "./components/Login";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 const OcrWorkspace = lazy(() => import("./components/OcrWorkspace.jsx"));
+const MyFiles = lazy(() => import("./components/MyFiles.jsx"));
 import Signup from "./components/Signup";
 import History from "./components/History";
 import { services } from "./data/services";
 import { LAST_WORKSPACE_ROUTE_KEY, isKnownWorkspacePath, recoverWorkspacePath } from "./utils/routeContinuity";
 
-const workspacePaths = ["/", "/login", "/signup", "/history", "/forgot-password", "/ocr", ...services.map((tool) => `/${tool.id}`)];
+const workspacePaths = ["/", "/login", "/signup", "/history", "/my-files", "/forgot-password", "/ocr", ...services.map((tool) => `/${tool.id}`)];
 
 // A Render SPA fallback or browser tab restoration can land on /index.html.
 // Preserve the current *known* client route for this tab, and only restore a
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/history" element={<History />} />
+          <Route path="/my-files" element={<Suspense fallback={<p role="status">Loading private files…</p>}><MyFiles /></Suspense>} />
           <Route path="/ocr" element={<Suspense fallback={<p role="status">Loading OCR workspace…</p>}><OcrWorkspace /></Suspense>} />
           <Route path="/home" element={<Navigate to="/" replace />} />
           <Route path="/index.html" element={<RecoverIndexHtmlRoute />} />

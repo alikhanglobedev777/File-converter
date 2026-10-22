@@ -1,0 +1,11 @@
+
+.dashboard-invite { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: rgba(12,25,43,.57); padding: 18px; }
+.dashboard-invite__dialog { position: relative; width: min(100%,450px); padding: clamp(23px,4vw,36px); border-radius: 18px; background: #fff; box-shadow: 0 24px 90px rgba(4,17,38,.22); text-align: left; }
+.dashboard-invite__close { position: absolute; top: 15px; right: 15px; background: #eef3fa; color: var(--ink); border: 0; border-radius: 8px; width: 34px; height: 34px; display: grid; place-items: center; cursor: pointer; }
+.dashboard-invite__icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 12px; background: #e9f3ff; color: var(--blue); margin-bottom: 15px; font-size: 25px; }
+.dashboard-invite h2 { font-size: clamp(25px,3vw,30px); margin: 12px 0; letter-spacing: -.03em; }
+.dashboard-invite p { color: var(--muted); font-size: 13px; line-height: 1.75; }
+.dashboard-invite__buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 20px 0 15px; }
+.dashboard-invite__buttons .button { min-height: 44px; }
+.dashboard-invite small { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.dashboard-invite__later { display: block; margin-top: 18px; padding: 9px 0; border: none; background: none; color: var(--muted); font-size: 12px; text-decoration: underline; cursor: pointer; }

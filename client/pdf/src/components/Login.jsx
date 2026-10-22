@@ -1,5 +1,5 @@
 import { useContext, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { FiArrowRight, FiLock, FiMail } from "react-icons/fi";
 import { AuthContext } from "../context/AuthContext";
@@ -14,6 +14,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -27,7 +28,7 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       login({ name: data.name, email: data.email });
       toast.success(`Welcome back, ${data.name}!`);
-      navigate("/");
+      navigate(location.state?.next === "/my-files" ? "/my-files" : "/");
     } catch (error) {
       toast.error(error.message || "Login failed");
     } finally {
