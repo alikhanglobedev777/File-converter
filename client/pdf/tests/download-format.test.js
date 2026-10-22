@@ -23,6 +23,7 @@ test('each converter validates correct extensions and output types', async () =>
   const cases = [
     ['pdf-to-excel', 'xlsx', zip, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     ['pdf-to-word', 'docx', zip, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    ['ocr-to-word', 'docx', zip, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     ['pdf-to-ppt', 'pptx', zip, 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
     ['excel-to-pdf', 'pdf', pdf, 'application/pdf'],
     ['excel-to-word', 'docx', zip, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
