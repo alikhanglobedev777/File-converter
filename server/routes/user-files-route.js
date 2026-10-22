@@ -12,9 +12,30 @@ const {
 
 const router = express.Router();
 const bucketName = 'ak_saved_files';
+// Allow a little multipart envelope headroom for browsers/proxies while
+// keeping actual file bytes, file count, field bytes and total parts bounded.
+// The old fields:0 / parts:1 was unnecessarily strict for small uploads.
 const upload = multer({ storage: multer.memoryStorage(), limits: {
-  fileSize: MAX_FILE_BYTES, files: 1, fields: 0, parts: 1,
+  fileSize: MAX_FILE_BYTES,
+  files: 1,
+  fields: 2,
+  parts: 3,
+  fieldSize: 1024,
+  fieldNameSize: 40,
+  headerPairs: 50,
 }}).single('file');
+
+function fileUploadError(err) {
+  if (!err) return null;
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return { status: 413, error: 'This file exceeds the 5 MB limit.' };
+  }
+  if (['LIMIT_FILE_COUNT', 'LIMIT_UNEXPECTED_FILE', 'LIMIT_PART_COUNT',
+    'LIMIT_FIELD_COUNT', 'LIMIT_FIELD_VALUE', 'LIMIT_FIELD_KEY'].includes(err.code)) {
+    return { status: 400, error: 'Please select one file and try again.' };
+  }
+  return { status: 400, error: 'This upload could not be read. Please try again.' };
+}
 const validId = id => mongoose.isValidObjectId(id);
 function store() {
   const db = mongoose.connection.db;
@@ -87,7 +108,12 @@ router.get('/', async (req, res) => {
 
 router.post('/', createRateLimiter({ limit: 12 }), createConcurrencyLimiter({ limit: 2 }), (req, res) => {
   upload(req, res, async err => {
-    if (err) return res.status(400).json({ error: 'Choose one supported file smaller than 5 MB.' });
+    if (err) {
+      // No filename, token, document content or form data in application logs.
+      console.warn('Private file multipart upload rejected', { code: err.code || 'PARSE_FAILURE' });
+      const failure = fileUploadError(err);
+      return res.status(failure.status).json({ error: failure.error });
+    }
     const checked = validateSavedFile(req.file);
     if (!checked) return res.status(400).json({ error: 'Unsupported or damaged file. Use PDF, JPG, PNG, WebP, DOCX, XLSX, PPTX, ZIP, or UTF-8 TXT (max 5 MB).' });
     let resources;
@@ -182,4 +208,4 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-module.exports = { router, reserveQuota, renderItem, resolveOwnerFile };
+module.exports = { router, reserveQuota, renderItem, resolveOwnerFile, upload, fileUploadError };
