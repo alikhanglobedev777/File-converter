@@ -1,5 +1,6 @@
 const ExcelJS = require('exceljs');
 const { writeOutput } = require('./output');
+const { convertPdfToExcelFallback } = require('./pdfToExcel-fallback');
 const { openPdf, renderPage, cropPage, extractLayout, positionedLines, joinItems, isTableLayout } = require('./pdf-layout');
 
 // Grid coordinates are expressed in PDF points, then mapped to native Excel
@@ -224,7 +225,7 @@ function addOriginal(workbook,rendered,layout,number) {
     editAs:'oneCell'});
 }
 
-exports.convertPdfToExcel = async(pdfPath) => {
+async function convertPdfToExcelStyled(pdfPath) {
   const document=await openPdf(pdfPath);
   const workbook=new ExcelJS.Workbook();
   try {
@@ -258,4 +259,31 @@ exports.convertPdfToExcel = async(pdfPath) => {
     }
     return writeOutput('xlsx',filename=>workbook.xlsx.writeFile(filename));
   } finally { await document.destroy(); }
+};
+
+
+exports.convertPdfToExcel = async (pdfPath) => {
+  try {
+    return await convertPdfToExcelStyled(pdfPath);
+  } catch (error) {
+    // Do not retry invalid/encrypted documents or resource exhaustion:
+    // opening them again will only waste resources or obscure the error.
+    if (['InvalidPDFException', 'PasswordException', 'MissingPDFException',
+         'UnexpectedResponseException'].includes(error?.name) ||
+        error?.code === 'ENOMEM' || error?.code === 'ENOSPC') throw error;
+    console.error('[pdf-to-excel-styled-failed]', {
+      name: error?.name, message: error?.message, stack: error?.stack,
+    });
+    try {
+      return await convertPdfToExcelFallback(pdfPath);
+    } catch (fallbackError) {
+      console.error('[pdf-to-excel-fallback-failed]', {
+        name: fallbackError?.name,
+        message: fallbackError?.message,
+        stack: fallbackError?.stack,
+      });
+      // Preserve the original exception, which explains why the normal path failed.
+      throw error;
+    }
+  }
 };

@@ -22,8 +22,14 @@ function extractGraphics(operatorList, OPS, Util, viewport) {
   let pendingRects = [], pendingLines = [];
 
 
-  const transform = (point) => Util.applyTransform(point,
-    Util.transform(viewport.transform, state.matrix));
+  const transform = (point) => {
+    // pdfjs-dist 5.x may mutate the point and return undefined; older
+    // versions returned a new point. Support both contracts.
+    const copy = [point[0], point[1]];
+    const result = Util.applyTransform(copy,
+      Util.transform(viewport.transform, state.matrix));
+    return Array.isArray(result) || ArrayBuffer.isView(result) ? result : copy;
+  };
   const bounded = (points) => {
     const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
     const x = Math.max(0, Math.min(...xs)), y = Math.max(0, Math.min(...ys));
@@ -75,7 +81,56 @@ function extractGraphics(operatorList, OPS, Util, viewport) {
     } else if (op === OPS.setLineWidth) {
       state.lineWidth = Number(args[0]) || 1;
     } else if (op === OPS.constructPath) {
-      const commands = args[0] || [], coords = args[1] || [];
+      // pdfjs-dist 5.4 uses [paintOperator, [encodedPaths], bounds].
+      // Each encoded rectangle is move(0), line(1)x3, close(4).
+      // Older formats expose [pathOps, flatCoordinates] instead.
+      if (typeof args[0] === 'number' && Array.isArray(args[1]) &&
+          args[1].some(path => Array.isArray(path) || ArrayBuffer.isView(path))) {
+        const paintOperator = args[0];
+        for (const data of args[1]) {
+          if (!data || data.length < 6) continue;
+          if (data.length === 13 &&
+              data[0] === 0 && data[3] === 1 && data[6] === 1 &&
+              data[9] === 1 && data[12] === 4) {
+            const corners = [1, 4, 7, 10].map(index =>
+              transform([data[index], data[index + 1]]));
+            const xs = corners.map(p => p[0]), ys = corners.map(p => p[1]);
+            const x = Math.min(...xs), y = Math.min(...ys);
+            const width = Math.max(...xs) - x, height = Math.max(...ys) - y;
+            if (width >= 1 && height >= 1) {
+              pendingRects.push({ x, y, width, height });
+            }
+          } else {
+            let offset = 0, cursor, first;
+            while (offset < data.length) {
+              const instruction = data[offset++];
+              if (instruction === 0 && offset + 1 < data.length) {
+                cursor = [data[offset], data[offset + 1]];
+                first = cursor; offset += 2;
+              } else if (instruction === 1 && offset + 1 < data.length) {
+                const next = [data[offset], data[offset + 1]];
+                pushLine(cursor, next);
+                cursor = next; offset += 2;
+              } else if (instruction === 4) {
+                pushLine(cursor, first);
+                cursor = first;
+              } else break;
+            }
+          }
+        }
+        paint(paintOperator);
+        continue;
+      }
+      // Some PDF producers expose individual drawing commands as a scalar.
+
+      // previous code assumed every constructPath argument was an array.
+      const rawCommands = args[0];
+      const commands = typeof rawCommands === 'number'
+        ? [rawCommands]
+        : (Array.isArray(rawCommands) || ArrayBuffer.isView(rawCommands)
+          ? rawCommands : []);
+      const coords = Array.isArray(args[1]) || ArrayBuffer.isView(args[1])
+        ? args[1] : [];
       let offset = 0, cursor, start;
       for (const command of commands) {
         if (command === OPS.rectangle) {
