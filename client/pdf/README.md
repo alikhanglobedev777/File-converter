@@ -43,3 +43,23 @@ Do **not** include `/api` in that variable; the UI appends `/api/convert/:servic
 - Responsive desktop sidebar/mobile drawer with accessible controls and consistent blue/white/black styling.
 
 PDF-to-PowerPoint uses page images, not editable slide content. PDF-to-Excel and PDF-to-Word depend on extractable text; scans require OCR. The file size and count restrictions are enforced by the existing backend as well as surfaced in the UI. Backend availability is required for actual conversions and authentication.
+
+## Render static-site routing (important)
+
+This frontend uses React Router's `BrowserRouter`, so routes such as
+`/pdf-to-excel` and `/history` must load the same Vite-built HTML shell.
+For a **Render Static Site**, open **Redirects/Rewrites** and create this rule:
+
+| Source | Destination | Action |
+| --- | --- | --- |
+| `/*` | `/index.html` | **Rewrite** (not Redirect) |
+
+Use **Rewrite**, so the browser keeps the requested URL. A 301/302 redirect
+changes the address to `/index.html`, which can happen during browser tab
+restoration or reloading a converter route. Do not route `/api/*` into the
+frontend if the API is served on the same origin.
+
+The app also recognizes `/index.html` as a recovery alias: it returns to the
+last known valid route in that browser tab, or to the workspace home if none is
+recorded. This prevents the in-app not-found screen even if a host or browser
+lands on `/index.html`; the hosting Rewrite rule is still the preferred fix.
