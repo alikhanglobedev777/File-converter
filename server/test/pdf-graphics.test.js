@@ -99,3 +99,54 @@ test('mutating applyTransform also preserves image bounds', () => {
     x: 20, y: 172, width: 72, height: 48,
   });
 });
+
+
+test('real pdfkit rectangle operator is understood by the graphics parser', async () => {
+  const PDFKit = require('pdfkit');
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { openPdf, extractLayout } = require('../services/pdf-layout');
+  const buffer = await new Promise((resolve, reject) => {
+    const doc = new PDFKit({ size: [600, 420], margin: 20 });
+    const chunks = [];
+    doc.on('data', part => chunks.push(part));
+    doc.on('error', reject);
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.rect(30, 80, 180, 30).fillAndStroke('#112233', '#000000');
+    doc.rect(210, 80, 180, 30).fillAndStroke('#112233', '#000000');
+    doc.rect(30, 110, 180, 30).fillAndStroke('#FFFFFF', '#000000');
+    doc.rect(210, 110, 180, 30).fillAndStroke('#FFFFFF', '#000000');
+    doc.end();
+  });
+  const filename = path.join(os.tmpdir(), 'pdf-operator-sample-' + process.pid + '.pdf');
+  await fs.writeFile(filename, buffer);
+  const pdf = await openPdf(filename);
+  try {
+    const page = await pdf.getPage(1);
+    const { OPS } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const ops = await page.getOperatorList();
+    const shape = ops.fnArray.map((fn, i) => ({ fn, args:ops.argsArray[i] }))
+      .filter(entry => entry.fn === OPS.constructPath).slice(0, 6);
+    const describe = entry => {
+      const args = entry.args || [];
+      const describeItem = (v) => v == null ? 'null' :
+        typeof v === 'number' ? { type:'number',value:v } :
+        typeof v === 'object' ? { type:v.constructor?.name,
+          len:v.length, sample:Array.from(v).slice(0, 14) } :
+        {type:typeof v,value:String(v).slice(0, 60)};
+      return {
+        argsType: args.constructor?.name,
+        array: Array.isArray(args),
+        args: Array.isArray(args)?args.map(describeItem):describeItem(args),
+      };
+    };
+    console.log('PDF_OPERATOR_SHAPES:', JSON.stringify(shape.map(describe)));
+    const layout = await extractLayout(page);
+    assert.ok(layout.graphics.rectangles.length >= 4,
+      'PDFKit page contains at least four native rectangles');
+  } finally {
+    await pdf.destroy();
+    await fs.rm(filename, { force:true });
+  }
+});
