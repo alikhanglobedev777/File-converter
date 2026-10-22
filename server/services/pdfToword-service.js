@@ -4,6 +4,7 @@ const {
   ImageRun, WidthType, TabStopType, AlignmentType,
 } = require('docx');
 const { writeOutput } = require('./output');
+const { collectArtwork } = require('./pdf-artwork');
 const {
   openPdf, renderPage, extractLayout, positionedLines, isTableLayout, joinItems,
 } = require('./pdf-layout');
@@ -148,6 +149,39 @@ exports.convertPdfToWord = async (inputPath) => {
       try {
         const layout = await extractLayout(page);
         let children = editablePage(layout);
+        if (layout.items.length && layout.graphics &&
+            (layout.graphics.images.length || layout.graphics.rectangles.length ||
+             layout.graphics.lines.length)) {
+          const rendered = await renderPage(pdf, page);
+          try {
+            const pieces = collectArtwork(pdf, rendered, layout);
+            if (pieces.length) {
+              // Floating pieces are behind real Word runs. Unlike a page-sized
+              // PNG, text remains selectable and editable in the document body.
+              const decoration = pieces.map(piece => new ImageRun({
+                type: 'png',
+                data: piece.data,
+                transformation: {
+                  width: Math.max(1, Math.round(piece.width * 96 / 72)),
+                  height: Math.max(1, Math.round(piece.height * 96 / 72)),
+                },
+                floating: {
+                  horizontalPosition: {
+                    relative: 'page', offset: Math.max(0, Math.round(piece.x * 12700)),
+                  },
+                  verticalPosition: {
+                    relative: 'page', offset: Math.max(0, Math.round(piece.y * 12700)),
+                  },
+                  behindDocument: true, allowOverlap: true,
+                },
+              }));
+              children = [new Paragraph({
+                spacing: { before: 0, after: 0, line: 1, lineRule: 'exact' },
+                children: decoration,
+              }), ...children];
+            }
+          } finally { pdf.canvasFactory.destroy(rendered); }
+        }
         if (!layout.items.length) {
           // Scans without embedded text cannot be editable without OCR. Only
           // these pages use an image, and the conversion explains why.
