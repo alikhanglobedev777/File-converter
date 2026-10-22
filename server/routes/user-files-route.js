@@ -89,7 +89,7 @@ router.post('/', createRateLimiter({ limit: 12 }), createConcurrencyLimiter({ li
   upload(req, res, async err => {
     if (err) return res.status(400).json({ error: 'Choose one supported file smaller than 5 MB.' });
     const checked = validateSavedFile(req.file);
-    if (!checked) return res.status(400).json({ error: 'Unsupported or damaged file. Use PDF, JPG, PNG, WebP, DOCX, XLSX, or UTF-8 TXT (max 5 MB).' });
+    if (!checked) return res.status(400).json({ error: 'Unsupported or damaged file. Use PDF, JPG, PNG, WebP, DOCX, XLSX, PPTX, ZIP, or UTF-8 TXT (max 5 MB).' });
     let resources;
     let reserved = false;
     try {
