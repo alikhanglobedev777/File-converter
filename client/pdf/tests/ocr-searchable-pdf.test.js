@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
-import { parseOcrTsv, makeSearchablePdf } from '../src/utils/ocrPdfExport.js';
+import { parseOcrTsv, makeSearchablePdf, makeSearchablePdfFromPhoto } from '../src/utils/ocrPdfExport.js';
 
 const header = 'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext';
 
@@ -58,4 +58,36 @@ test('searchable PDF export never invents OCR positions or processes rotated pag
     words: [{ text: 'test', left: 1, top: 1, height: 10 }],
     dimensions: { width: 200, height: 300 },
   }]), /Invalid OCR page/);
+});
+
+
+test('a camera photo becomes a one-page PDF with visible picture and searchable OCR', async () => {
+  // Valid minimal 1x1 PNG; the browser normally supplies a downscaled JPEG.
+  const image = new Blob([Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p6UAAAAASUVORK5CYII=',
+    'base64')], { type: 'image/png' });
+  const out = await makeSearchablePdfFromPhoto(image, {
+    page: 1,
+    method: 'OCR recognition',
+    dimensions: { width: 1200, height: 800 },
+    words: [{ text: 'CameraInvoice', left: 50, top: 40, width: 200, height: 40 }],
+  });
+  assert.equal(out.type, 'application/pdf');
+  const bytes = new Uint8Array(await out.arrayBuffer());
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 1);
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = pdfjs.getDocument({ data: bytes, isEvalSupported: false });
+  try {
+    const doc = await task.promise;
+    const page = await doc.getPage(1);
+    const content = await page.getTextContent();
+    assert.match(content.items.map(item => item.str).join(' '), /CameraInvoice/);
+    const ops = await page.getOperatorList();
+    assert.ok(ops.fnArray.some(code => code === pdfjs.OPS.paintImageXObject), 'visible image is retained');
+  } finally {
+    await task.destroy();
+  }
+  await assert.rejects(makeSearchablePdfFromPhoto(image, { words: [], dimensions: {width:1,height:1} }),
+    /Recognize a supported photo/);
 });

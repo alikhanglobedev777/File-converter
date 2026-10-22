@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
-  OCR_MAX_FILE_BYTES, OCR_MAX_PAGES, OCR_MAX_PIXELS,
-  isSupportedOcrFile, selectedOcrPages, boundedPageScale,
+  OCR_MAX_FILE_BYTES, OCR_MAX_IMAGE_BYTES, OCR_MAX_PAGES, OCR_MAX_PIXELS,
+  isSupportedOcrFile, isImageOcrFile, selectedOcrPages, boundedPageScale, boundedImageDimensions,
   safeOcrText, assembleOcrText, textDownloadName,
 } from "../src/utils/ocrLimits.js";
 
@@ -41,8 +41,43 @@ test("OCR UI runs separately; only explicit Word export posts reviewed text, not
   assert.match(source, /Download editable TXT/);
   assert.match(source, /api\/ocr\/word/);
   assert.match(source, /body: JSON.stringify\(\{ pages: pages.map/);
-  assert.match(source, /The original scanned PDF stays on your device/);
+  assert.match(source, /The original scanned PDF or photo stays on your device/);
   assert.doesNotMatch(source, /FormData|XMLHttpRequest/);
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
   assert.match(app, /path="\/ocr"/);
+});
+
+
+test("camera photos are accepted as image OCR inputs without relaxing PDF limits", () => {
+  assert.ok(isSupportedOcrFile({ name: "photo.jpg", type: "image/jpeg", size: 1024 }));
+  assert.ok(isSupportedOcrFile({ name: "photo.PNG", type: "image/png", size: 2048 }));
+  assert.ok(isSupportedOcrFile({ name: "scan.webp", type: "image/webp", size: 1024 }));
+  assert.equal(isSupportedOcrFile({ name: "photo.jpg", type: "image/jpeg", size: OCR_MAX_IMAGE_BYTES + 1 }), false);
+  assert.equal(isSupportedOcrFile({ name: "photo.exe", type: "image/jpeg", size: 1024 }), false);
+  assert.equal(isImageOcrFile({ name: "photo.jpg", type: "application/pdf", size: 1024 }), false);
+  assert.equal(isSupportedOcrFile({ name: "data.pdf", type: "image/jpeg", size: 1024 }), false);
+  assert.equal(textDownloadName("camera-photo.jpg"), "camera-photo-ocr.txt");
+  assert.equal(textDownloadName("scan.png", "pdf"), "scan-ocr.pdf");
+});
+
+test("large photos are downscaled before recognition to protect browser memory", () => {
+  const dimensions = boundedImageDimensions(6000, 4000);
+  assert.ok(dimensions.width * dimensions.height <= OCR_MAX_PIXELS);
+  assert.equal(boundedImageDimensions(600, 400).width, 600);
+  assert.throws(() => boundedImageDimensions(0, 400));
+  assert.throws(() => boundedImageDimensions(200000, 400));
+});
+
+test("camera permission is user-initiated, preview streams are stopped, no live upload", async () => {
+  const camera = await readFile(new URL("../src/components/OcrCameraInput.jsx", import.meta.url), "utf8");
+  const workspace = await readFile(new URL("../src/components/OcrWorkspace.jsx", import.meta.url), "utf8");
+  assert.match(camera, /navigator\.mediaDevices\.getUserMedia/);
+  assert.match(camera, /track\.stop\(\)/);
+  assert.match(camera, /capture="environment"/);
+  assert.match(camera, /const capture = async/);
+  assert.match(camera, /onPhoto\(photo\)/);
+  assert.doesNotMatch(camera, /fetch\s*\(|XMLHttpRequest|FormData/);
+  assert.match(workspace, /<OcrCameraInput onPhoto=\{chooseFile\}/);
+  assert.match(workspace, /decodeOcrPhoto\(file\)/);
+  assert.match(workspace, /makeSearchablePdfFromPhoto\(photoJpeg, pages\[0\]\)/);
 });
