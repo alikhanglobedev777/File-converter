@@ -52,6 +52,8 @@ export default function FileConverter({ service }) {
   const [batchMode, setBatchMode] = useState(false);
   const [progress, setProgress] = useState(null);
   const [results, setResults] = useState([]);
+  const [saveCandidate, setSaveCandidate] = useState(null);
+  const [savingToVault, setSavingToVault] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
@@ -202,6 +204,7 @@ export default function FileConverter({ service }) {
     abortRef.current = controller;
     setLoading(true);
     setResults([]);
+    setSaveCandidate(null);
     setProgress({ stage: 'Preparing', percent: null, current: 1, total: jobs.length });
     setFeedback({ kind: 'info', text: batch ? 'Batch conversion started. Your browser may ask to allow multiple downloads.' : 'Your file is being processed. Please keep this tab open.' });
     const completed = [];
@@ -219,6 +222,11 @@ export default function FileConverter({ service }) {
         });
         const { filename } = await validateDownload(service, response, blob, jobFiles[0]?.name);
         downloadFile(blob, filename);
+        // Hold only the latest small result for an explicit, authenticated save.
+        if (user && blob.size > 0 && blob.size <= 5 * 1024 * 1024 &&
+            /\.(?:pdf|jpe?g|png|webp|docx|xlsx|pptx|zip|txt)$/i.test(filename)) {
+          setSaveCandidate({ blob, filename });
+        }
         completed.push({ input: jobFiles[0]?.name, filename, bytes: blob.size, originalBytes: jobFiles.reduce((sum, f) => sum + f.size, 0), ok: true });
       } catch (error) {
         completed.push({ input: jobFiles[0]?.name, ok: false, error: error.message || 'Conversion failed.' });
@@ -243,6 +251,33 @@ export default function FileConverter({ service }) {
     abortRef.current = null;
     setProgress(null);
     setLoading(false);
+  };
+
+  const saveConvertedResult = async () => {
+    if (!user || !saveCandidate || savingToVault) return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setFeedback({ kind: 'error', text: 'Please log in again to save a file.' });
+      return;
+    }
+    setSavingToVault(true);
+    try {
+      const payload = new FormData();
+      payload.append('file', new File([saveCandidate.blob], saveCandidate.filename, {
+        type: saveCandidate.blob.type || 'application/octet-stream',
+      }));
+      const response = await fetch(API_BASE_URL + '/api/files', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: payload,
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error || 'Could not save your file.');
+      setSaveCandidate(null);
+      setFeedback({ kind: 'success', text: 'File saved to My Files. Open your dashboard to manage it.' });
+    } catch (err) {
+      setFeedback({ kind: 'error', text: err.message || 'Could not save the file.' });
+    } finally {
+      setSavingToVault(false);
+    }
   };
 
   const actionLabel = actionLabels[service] || "Convert file";
@@ -444,6 +479,13 @@ export default function FileConverter({ service }) {
             </div>}
             {results.length > 0 && <div className="batch-results" aria-live="polite"><h3>Conversion results</h3><ul>{results.map((item, index) => <li key={`${index}-${item.input}`}><span>{item.ok ? <FiCheckCircle /> : <FiAlertCircle />}</span><span><strong>{item.input}</strong><small>{item.ok ? `${item.filename} · ${formatBytes(item.bytes)}${service === 'pdf-compressor' ? ` · Original ${formatBytes(item.originalBytes)}` : ''}` : item.error}</small></span></li>)}</ul></div>}
 
+            {user && saveCandidate && !loading && <div className="save-to-files" role="group" aria-label="Save converted file">
+              <button className="button" type="button" onClick={saveConvertedResult} disabled={savingToVault}>
+                <FiFile aria-hidden="true" /> {savingToVault ? 'Saving to My Files…' : 'Save latest download to My Files'}
+              </button>
+              <Link to="/my-files">Open My Files <FiArrowRight aria-hidden="true" /></Link>
+              <small>Optional · Max 5 MB per saved file</small>
+            </div>}
             {loading && <button className="button button--outline cancel-conversion" type="button" onClick={() => abortRef.current?.abort()}>Cancel conversion</button>}
             <button className="button button--primary convert-action" type="submit" disabled={loading || files.length < (tool.minFiles || 1)}>
               {loading ? <><span className="loading-spinner" /> Processing your files…</> : <><FiZap aria-hidden="true" /> {actionLabel} <FiArrowRight className="convert-action__arrow" aria-hidden="true" /></>}
