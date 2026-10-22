@@ -13,6 +13,8 @@ const ALLOWED = Object.freeze({
   webp: 'image/webp',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  zip: 'application/zip',
   txt: 'text/plain',
 });
 
@@ -48,7 +50,7 @@ function validateSavedFile(file) {
     : ext === 'jpg' || ext === 'jpeg' ? starts('ffd8ff') && data.subarray(-2).equals(Buffer.from('ffd9', 'hex'))
     : ext === 'png' ? starts('89504e470d0a1a0a') && data.subarray(-12).equals(Buffer.from('0000000049454e44ae426082','hex'))
     : ext === 'webp' ? data.subarray(0,4).toString() === 'RIFF' && data.subarray(8,12).toString() === 'WEBP'
-    : ext === 'docx' || ext === 'xlsx' ? starts('504b0304') && hasZipTrailer(data)
+    : ['docx', 'xlsx', 'pptx', 'zip'].includes(ext) ? starts('504b0304') && hasZipTrailer(data)
     : ext === 'txt' ? !data.includes(0) && new TextDecoder('utf-8', { fatal: true }).decode(data).length <= MAX_FILE_BYTES
     : false;
   return result ? { name, mime: ALLOWED[ext], size: file.size } : null;
