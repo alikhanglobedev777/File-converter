@@ -1,7 +1,10 @@
 const User = require("../model/user");
 const jwt = require("jsonwebtoken");
 
-const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+const generateToken = (user) => jwt.sign({
+  id: user._id,
+  rv: user.tokenVersion || 0,
+}, process.env.JWT_SECRET, { expiresIn: "7d" });
 
 // Signup
 exports.signup = async (req, res) => {
@@ -20,7 +23,7 @@ exports.signup = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      token: generateToken(user._id),
+      token: generateToken(user),
     });
   } catch (err) {
     console.error("Signup Error:", err);
@@ -46,7 +49,7 @@ exports.login = async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      token: generateToken(user._id),
+      token: generateToken(user),
     });
   } catch (err) {
     console.error("Login Error:", err);

@@ -7,12 +7,14 @@ import Navbar from "./components/Navbar";
 import Home from "./components/Home";
 import FileConverter from "./components/FileConverter";
 import Login from "./components/Login";
+import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword";
 import Signup from "./components/Signup";
 import History from "./components/History";
 import { services } from "./data/services";
 import { LAST_WORKSPACE_ROUTE_KEY, isKnownWorkspacePath, recoverWorkspacePath } from "./utils/routeContinuity";
 
-const workspacePaths = ["/", "/login", "/signup", "/history", ...services.map((tool) => `/${tool.id}`)];
+const workspacePaths = ["/", "/login", "/signup", "/history", "/forgot-password", ...services.map((tool) => `/${tool.id}`)];
 
 // A Render SPA fallback or browser tab restoration can land on /index.html.
 // Preserve the current *known* client route for this tab, and only restore a
@@ -50,6 +52,8 @@ export default function App() {
           <Route path="/" element={<Home />} />
           {services.map((tool) => <Route key={tool.id} path={`/${tool.id}`} element={<FileConverter key={tool.id} service={tool.id} />} />)}
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/history" element={<History />} />
           <Route path="/home" element={<Navigate to="/" replace />} />
