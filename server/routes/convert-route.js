@@ -10,6 +10,7 @@ const {
   pdfToExcel,
   pdfToWord,
   pdfToJpg,
+  pdfToPng,
   pdfToPpt,
   excelToPdf,
   excelToWord,
@@ -28,7 +29,7 @@ const router = express.Router();
 const uploadDir = path.join(__dirname, "../uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-const singlePdfRoutes = new Set(['/pdf-to-excel', '/pdf-to-word', '/pdf-to-jpg', '/pdf-to-ppt', '/pdf-splitter', '/pdf-organizer', '/pdf-compressor']);
+const singlePdfRoutes = new Set(['/pdf-to-excel', '/pdf-to-word', '/pdf-to-jpg', '/pdf-to-png', '/pdf-to-ppt', '/pdf-splitter', '/pdf-organizer', '/pdf-compressor']);
 const singleExcelRoutes = new Set(['/excel-to-pdf', '/excel-to-word', '/excel-to-ppt']);
 const imageToPdfExtensions = new Set(['.jpg', '.jpeg', '.png']);
 
@@ -60,6 +61,7 @@ router.use(optionalProtect);
 router.post('/pdf-to-excel', upload.single('file'), pdfToExcel);
 router.post('/pdf-to-word', upload.single('file'), pdfToWord);
 router.post('/pdf-to-jpg', upload.single('file'), pdfToJpg);
+router.post('/pdf-to-png', upload.single('file'), pdfToPng);
 router.post('/pdf-to-ppt', upload.single('file'), pdfToPpt);
 router.post('/excel-to-pdf', upload.single('file'), excelToPdf);
 router.post('/excel-to-word', upload.single('file'), excelToWord);
