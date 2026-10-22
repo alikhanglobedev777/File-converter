@@ -5,17 +5,19 @@ import { boundedImageDimensions } from "../utils/ocrLimits";
 // The browser, not AK Converter's backend, owns the camera stream.
 // Native capture is preferred on phones; getUserMedia provides an inline
 // viewfinder on desktop and on browsers that support it.
-export default function OcrCameraInput({ onPhoto, disabled = false }) {
+export default function OcrCameraInput({ onPhoto, disabled = false, selectedFile = null }) {
   const nativeRef = useRef(null);
   const galleryRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const mountedRef = useRef(true);
+  const cameraRequestRef = useRef(0);
   const [active, setActive] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [message, setMessage] = useState("");
 
   const stopCamera = () => {
+    cameraRequestRef.current += 1;
     const stream = streamRef.current;
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -27,10 +29,15 @@ export default function OcrCameraInput({ onPhoto, disabled = false }) {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      cameraRequestRef.current += 1;
       streamRef.current?.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (disabled || selectedFile) stopCamera();
+  }, [disabled, selectedFile]);
 
   useEffect(() => {
     if (!active || !videoRef.current || !streamRef.current) return;
@@ -48,18 +55,21 @@ export default function OcrCameraInput({ onPhoto, disabled = false }) {
       setMessage("Live camera preview is not available. Use Take photo on a phone or Upload photo.");
       return;
     }
+    const requestId = ++cameraRequestRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } }, audio: false,
       });
-      if (!mountedRef.current || disabled) {
+      if (!mountedRef.current || disabled || requestId !== cameraRequestRef.current) {
         stream.getTracks().forEach(track => track.stop());
         return;
       }
       streamRef.current = stream;
       setActive(true);
     } catch {
-      setMessage("Camera permission was denied or the camera is unavailable. You can still upload a photo.");
+      if (mountedRef.current && requestId === cameraRequestRef.current) {
+        setMessage("Camera permission was denied or the camera is unavailable. You can still upload a photo.");
+      }
     }
   };
 
