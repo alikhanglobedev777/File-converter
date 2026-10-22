@@ -43,6 +43,20 @@ export const services = [
     points: ["Choose a page to export", "Always downloads one JPG, never a ZIP", "Export more pages one at a time"],
   },
   {
+    id: "pdf-to-png",
+    title: "PDF to PNG",
+    from: "PDF",
+    to: "PNG",
+    category: "PDF tools",
+    description: "Export a PDF page as a crisp lossless PNG image.",
+    detail: "Choose the PDF page and resolution. The selected page is rasterized to a real PNG with no JPEG compression; for multiple pages, select and export one page at a time.",
+    icon: "image",
+    input: ".pdf",
+    inputLabel: "PDF document",
+    outputLabel: ".png image",
+    points: ["Choose an individual PDF page", "Lossless PNG image output", "Resolution options for clear text and graphics"],
+  },
+  {
     id: "pdf-to-ppt",
     title: "PDF to PowerPoint",
     from: "PDF",
@@ -194,7 +208,7 @@ export const services = [
 ];
 
 export const serviceGroups = [
-  { title: "PDF tools", ids: ["pdf-to-excel", "pdf-to-word", "pdf-to-jpg", "pdf-to-ppt", "pdf-compressor", "pdf-splitter", "pdf-organizer"] },
+  { title: "PDF tools", ids: ["pdf-to-excel", "pdf-to-word", "pdf-to-jpg", "pdf-to-png", "pdf-to-ppt", "pdf-compressor", "pdf-splitter", "pdf-organizer"] },
   { title: "Excel tools", ids: ["excel-to-pdf", "excel-to-word", "excel-to-ppt"] },
   { title: "File utilities", ids: ["image-to-pdf", "pdf-merger", "zip-maker"] },
 ];
