@@ -45,3 +45,8 @@
 @media (max-width: 360px) {
   .auth-card { padding: 23px 16px; }
 }
+
+.auth-recovery-link { text-align: right; margin: -8px 0 14px; font-size: 12px; font-weight: 800; }
+.auth-recovery-link a, .auth-status a { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; }
+.auth-status { font-size: 13px; line-height: 1.7; color: var(--ink); padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 16px; }
+.auth-status--error { color: #a72828; border-color: #edb3b3; }
