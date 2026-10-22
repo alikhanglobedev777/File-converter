@@ -22,8 +22,14 @@ function extractGraphics(operatorList, OPS, Util, viewport) {
   let pendingRects = [], pendingLines = [];
 
 
-  const transform = (point) => Util.applyTransform(point,
-    Util.transform(viewport.transform, state.matrix));
+  const transform = (point) => {
+    // pdfjs-dist 5.x may mutate the point and return undefined; older
+    // versions returned a new point. Support both contracts.
+    const copy = [point[0], point[1]];
+    const result = Util.applyTransform(copy,
+      Util.transform(viewport.transform, state.matrix));
+    return Array.isArray(result) || ArrayBuffer.isView(result) ? result : copy;
+  };
   const bounded = (points) => {
     const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
     const x = Math.max(0, Math.min(...xs)), y = Math.max(0, Math.min(...ys));
@@ -75,7 +81,15 @@ function extractGraphics(operatorList, OPS, Util, viewport) {
     } else if (op === OPS.setLineWidth) {
       state.lineWidth = Number(args[0]) || 1;
     } else if (op === OPS.constructPath) {
-      const commands = args[0] || [], coords = args[1] || [];
+      // Real PDF.js streams can contain a single numeric path opcode;
+      // previous code assumed every constructPath argument was an array.
+      const rawCommands = args[0];
+      const commands = typeof rawCommands === 'number'
+        ? [rawCommands]
+        : (Array.isArray(rawCommands) || ArrayBuffer.isView(rawCommands)
+          ? rawCommands : []);
+      const coords = Array.isArray(args[1]) || ArrayBuffer.isView(args[1])
+        ? args[1] : [];
       let offset = 0, cursor, start;
       for (const command of commands) {
         if (command === OPS.rectangle) {
