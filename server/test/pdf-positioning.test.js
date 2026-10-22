@@ -32,8 +32,34 @@ test('decorative boxes are not mistaken for actual tables', () => {
     { x: 20, y: 60, width: 60, height: 50 },
     { x: 100, y: 130, width: 80, height: 30 },
   ] }), false);
-  assert.equal(isTableLayout({ cells: [
-    { x: 20, y: 10, width: 60, height: 20 }, { x: 80, y: 10, width: 80, height: 20 },
-    { x: 20, y: 30, width: 60, height: 20 }, { x: 80, y: 30, width: 80, height: 20 },
+  assert.equal(isTableLayout({ width: 300, height: 240, cells: [
+    { x: 20, y: 10, width: 60, height: 20, stroke: '000000' },
+    { x: 80, y: 10, width: 80, height: 20, stroke: '000000' },
+    { x: 20, y: 30, width: 60, height: 20, stroke: '000000' },
+    { x: 80, y: 30, width: 80, height: 20, stroke: '000000' },
+  ], items: [
+    item('A', 25, 12), item('B', 85, 12),
+    item('C', 25, 32), item('D', 85, 32),
   ] }), true);
+});
+
+
+test('repeated CV background panels with sparse text are not a Word table', () => {
+  const panels = Array.from({ length: 4 }, (_, i) => [
+    { x: 25, y: 35 + i * 38, width: 260, height: 36, fill: '29444B', stroke: 'DDEEFF' },
+    { x: 285, y: 35 + i * 38, width: 260, height: 36, fill: '29444B', stroke: 'DDEEFF' },
+  ]).flat();
+  assert.equal(isTableLayout({
+    width: 595, height: 842, cells: panels,
+    items: [item('Muhammad Ali', 42, 43, 160)],
+  }), false, 'empty decorative boxes must never become a giant Word table');
+});
+
+test('background rectangles that surround normal resume text do not become a table', () => {
+  const rects = [0, 1, 2, 3].flatMap(row => [
+    { x: 20, y: 20 + row * 42, width: 285, height: 40, stroke: '000000' },
+    { x: 305, y: 20 + row * 42, width: 265, height: 40, stroke: '000000' },
+  ]);
+  const texts = [item('Name', 45, 25), item('Contact', 330, 25)];
+  assert.equal(isTableLayout({ width: 600, height: 842, cells: rects, items: texts }), false);
 });
