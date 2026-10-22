@@ -4,6 +4,7 @@ const formats = {
   "pdf-to-excel": ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
   "pdf-to-word": ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
   "ocr-to-word": ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  "ocr-searchable-pdf": ["pdf", "application/pdf"],
   "pdf-to-jpg": ["jpg", "image/jpeg"],
   "pdf-to-png": ["png", "image/png"],
   "pdf-to-ppt": ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
