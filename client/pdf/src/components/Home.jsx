@@ -5,6 +5,7 @@ import {
   FiDownload, FiFileText, FiGrid, FiLayers, FiUploadCloud, FiZap, FiSearch, FiX,
 } from "react-icons/fi";
 import { services } from "../data/services";
+import GuestDashboardInvite from "./GuestDashboardInvite";
 import ToolCard from "./ToolCard";
 
 const filters = ["All tools", "PDF tools", "Excel tools", "File utilities"];
@@ -20,6 +21,7 @@ export default function Home() {
 
   return (
     <div className="page dashboard-page">
+      <GuestDashboardInvite />
       <section className="hero-panel">
         <div className="hero-panel__content">
           <span className="eyebrow eyebrow--light"><span className="eyebrow__dot" /> ONE WORKSPACE. EVERY FILE.</span>
