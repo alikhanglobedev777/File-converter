@@ -190,6 +190,42 @@ test('PDF resume text stays editable, and Excel preserves the full visual page',
   assert.ok((xml.match(/<w:t\b/g) || []).length >= 5);
 });
 
+test('PDF resume colored background panels never cover editable Word content', async () => {
+  const source = await new Promise((resolve, reject) => {
+    const doc = new PDFKit({ autoFirstPage: false });
+    const parts = [];
+    doc.on('data', chunk => parts.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(parts)));
+    doc.on('error', reject);
+    doc.addPage({ size: [612, 792], margin: 20 });
+    doc.rect(30, 25, 552, 150).fill('#29444B');
+    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(24)
+      .text('Muhammad Ali', 56, 64);
+    doc.rect(30, 195, 274, 36).fill('#29444B');
+    doc.rect(304, 195, 278, 36).fill('#29444B');
+    doc.rect(30, 235, 274, 36).fill('#29444B');
+    doc.rect(304, 235, 278, 36).fill('#29444B');
+    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(12)
+      .text('PERSONAL INFORMATION', 56, 300);
+    doc.font('Helvetica').fontSize(10)
+      .text('Lahore', 60, 345, { lineBreak: false });
+    doc.text('03021848264', 350, 345, { lineBreak: false });
+    doc.text('Editable career objective and education details.', 60, 410);
+    doc.end();
+  });
+  const word = await convert('pdf-to-word', source, 'resume-panels.pdf');
+  const zip = await JSZip.loadAsync(word.buffer);
+  const xml = await zip.file('word/document.xml').async('string');
+  assert.match(xml, /Muhammad Ali/);
+  assert.match(xml, /PERSONAL INFORMATION/);
+  assert.match(xml, /Editable career objective/);
+  assert.ok(!(xml.match(/<w:tbl>/g) || []).length,
+    'resume background panels must not turn into fake Word tables');
+  assert.ok(!(xml.match(/<a:blip/g) || []).length,
+    'opaque background panels must not become large floating screenshots');
+  assert.match(xml, /<w:t\b/, 'text must remain selectable in the Word document');
+});
+
 test('Embedded PDF images remain individually movable beside editable Excel and Word text', async () => {
   const logo = await makeImage(96, 64, '#0C7A79', 'LOGO');
   const source = await new Promise((resolve, reject) => {

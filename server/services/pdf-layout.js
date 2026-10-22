@@ -74,21 +74,58 @@ function positionedLines(items) {
   });
 }
 
-// Decorative boxes aren't a table. A table has at least two rows and
-// repeatable, aligned column positions, not merely four rectangles.
-function isTableLayout(layout) {
-  if (layout.cells.length < 4) return false;
+// Detect actual table *cells*, not arbitrary recurring background blocks.
+// Designed CVs frequently have aligned colored rectangles and columns; that
+// geometry alone must NEVER cause Word to build a giant colored table.
+function detectTableCells(layout) {
+  const items = layout.items || [];
+  const candidates = (layout.cells || []).filter(c =>
+    c.stroke && Number.isFinite(c.x) && Number.isFinite(c.y) &&
+    Number.isFinite(c.width) && Number.isFinite(c.height) &&
+    c.width >= 8 && c.height >= 6 &&
+    c.height < layout.height * 0.22 &&
+    c.width < layout.width * 0.9);
+  if (candidates.length < 4) return [];
+
   const rows = [];
-  for (const cell of [...layout.cells].sort((a, b) => a.y - b.y)) {
-    let row = rows.find(r => Math.abs(r.y - cell.y) <= 1);
-    if (!row) rows.push(row = { y: cell.y, cells: [] });
-    row.cells.push(cell);
+  for (const rect of [...candidates].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    let row = rows.find(group => Math.abs(group.y - rect.y) <= 1 &&
+      Math.abs(group.height - rect.height) <= 1);
+    if (!row) rows.push(row = { y: rect.y, height: rect.height, cells: [] });
+    if (!row.cells.some(c => Math.abs(c.x - rect.x) <= 1 &&
+          Math.abs(c.width - rect.width) <= 1)) row.cells.push(rect);
   }
-  const populated = rows.filter(row => row.cells.length >= 2);
-  if (populated.length < 2) return false;
-  return populated.some((row, i) => populated.slice(i + 1).some(other =>
-    row.cells.filter(a => other.cells.some(b =>
-      Math.abs(a.x - b.x) <= 1 && Math.abs(a.width - b.width) <= 1)).length >= 2));
+
+  // Use one consistent grid rather than mixing a legitimate table with
+  // decorative boxes found elsewhere on the page.
+  let selected = [];
+  for (const row of rows.filter(group => group.cells.length >= 2)) {
+    const matchingRows = rows.filter(other => other.cells.length >= 2 &&
+      row.cells.filter(a => other.cells.some(b =>
+        Math.abs(a.x - b.x) <= 1 && Math.abs(a.width - b.width) <= 1)).length >= 2);
+    if (matchingRows.length < 2) continue;
+    const shared = row.cells.filter(cell => matchingRows.every(other =>
+      other.cells.some(c => Math.abs(c.x - cell.x) <= 1 &&
+        Math.abs(c.width - cell.width) <= 1)));
+    if (shared.length < 2) continue;
+    const matched = matchingRows.flatMap(group => group.cells.filter(cell =>
+      shared.some(c => Math.abs(c.x - cell.x) <= 1 &&
+        Math.abs(c.width - cell.width) <= 1)));
+    // Actual table cells usually contain values. Decorative bars and
+    // background panels are generally empty, even if their edges align.
+    const occupied = matched.filter(rect => items.some(item =>
+      item.text?.trim() && item.x >= rect.x - 1 &&
+      item.x < rect.x + rect.width - 1 &&
+      item.y + item.size / 2 >= rect.y &&
+      item.y + item.size / 2 < rect.y + rect.height));
+    if (occupied.length / matched.length < 0.65) continue;
+    if (matched.length > selected.length) selected = matched;
+  }
+  return selected.sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
+function isTableLayout(layout) {
+  return detectTableCells(layout).length >= 4;
 }
 
 // Only recognize axis-aligned rectangles, never arbitrary drawings as cells.
@@ -137,4 +174,4 @@ async function extractLayout(page) {
     graphics };
 }
 
-module.exports = { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems, positionedLines, isTableLayout };
+module.exports = { openPdf, renderPage, cropPage, extractLayout, groupLines, joinItems, positionedLines, isTableLayout, detectTableCells };
