@@ -24,4 +24,11 @@ function imageExportOptions({ scale = '2', quality = '90' } = {}) {
   return { scale: parsedScale, quality: parsedQuality };
 }
 
-module.exports = { pdfPrintOptions, imageExportOptions, ExportOptionsError };
+function pngExportOptions({ scale = '2' } = {}) {
+  if (!['1', '1.5', '2'].includes(String(scale))) {
+    throw new ExportOptionsError('PNG resolution must be 1, 1.5, or 2.');
+  }
+  return { scale: Number(scale) };
+}
+
+module.exports = { pdfPrintOptions, imageExportOptions, pngExportOptions, ExportOptionsError };

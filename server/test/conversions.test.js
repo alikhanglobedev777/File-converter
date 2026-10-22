@@ -85,6 +85,7 @@ async function convert(service, data, filename, multiple = false, options = null
     'pdf-to-excel': ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     'pdf-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     'pdf-to-jpg': ['jpg', 'image/jpeg'],
+    'pdf-to-png': ['png', 'image/png'],
     'pdf-to-ppt': ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
     'excel-to-pdf': ['pdf', 'application/pdf'],
     'excel-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -100,7 +101,8 @@ async function convert(service, data, filename, multiple = false, options = null
   assert.equal(response.headers.get('content-type'), mime, `${service}: Content-Type`);
   assert.match(response.headers.get('content-disposition'), new RegExp(`\\.${extension}(?:"|;|$)`, 'i'), `${service}: download filename`);
   assert.equal(buffer.subarray(0, extension === 'pdf' ? 5 : 2).toString(), extension === 'pdf' ? '%PDF-' :
-    extension === 'jpg' ? Buffer.from([0xff, 0xd8]).toString() : 'PK', `${service}: file signature`);
+    extension === 'jpg' ? Buffer.from([0xff, 0xd8]).toString()
+    : extension === 'png' ? Buffer.from([0x89, 0x50]).toString() : 'PK', `${service}: file signature`);
   return { buffer, response };
 }
 
@@ -286,6 +288,40 @@ test('PDF to JPG always returns a JPEG and exports the requested page', async ()
   assert.equal((await sharp(single.buffer).metadata()).format, 'jpeg');
 });
 
+test('PDF to PNG exports genuine lossless per-page images with resolution control', async () => {
+  const first = await convert('pdf-to-png', pdf, 'report.pdf');
+  assert.match(first.response.headers.get('content-disposition'), /report\.png/);
+  assert.equal(first.response.headers.get('content-type'), 'image/png');
+  const info = await sharp(first.buffer).metadata();
+  assert.equal(info.format, 'png');
+  assert.equal(info.width, 1200);
+  assert.equal(info.height, 840);
+  const second = await convert('pdf-to-png', pdf, 'report.pdf', false, { page: 2, scale: 1 });
+  assert.match(second.response.headers.get('content-disposition'), /report-page-002\.png/);
+  const smaller = await sharp(second.buffer).metadata();
+  assert.equal(smaller.format, 'png');
+  assert.equal(smaller.width, 600);
+  assert.equal(smaller.height, 420);
+  assert.notDeepEqual(first.buffer, second.buffer);
+});
+
+test('PDF-to-PNG validates selected pages, resolution, and invalid PDFs', async () => {
+  for (const value of ['0', '1.5', 'abc', '4']) {
+    const form = new FormData();
+    form.append('file', new Blob([pdf]), 'report.pdf');
+    form.append('page', value);
+    const response = await fetch(`${base}/pdf-to-png`, { method: 'POST', body: form });
+    assert.equal(response.status, 400, value);
+    assert.match((await response.json()).error, /page/i);
+  }
+  const form = new FormData();
+  form.append('file', new Blob([pdf]), 'report.pdf');
+  form.append('scale', '5');
+  const response = await fetch(`${base}/pdf-to-png`, { method: 'POST', body: form });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /resolution/i);
+});
+
 test('PDF-to-JPG rejects invalid and out-of-range page numbers without leaving files', async () => {
   for (const selectedPage of ['0', '-2', '1.5', 'abc', '99999999999999999999', '4']) {
     const form = new FormData();
@@ -363,6 +399,7 @@ test('invalid compression and export settings return safe 400 errors', async () 
     ['pdf-compressor', pdf, 'doc.pdf', { level: 'unsupported' }],
     ['excel-to-pdf', workbook, 'doc.xlsx', { paperSize: 'A1' }],
     ['pdf-to-jpg', pdf, 'doc.pdf', { quality: '1' }],
+    ['pdf-to-png', pdf, 'doc.pdf', { scale: '9' }],
   ];
   for (const [service, source, filename, fields] of cases) {
     const form = new FormData();
@@ -493,7 +530,7 @@ test('twelve-page JPG page selection and PowerPoint exports retain page order', 
 });
 
 test('all endpoints reject missing files; invalid files and insufficient merge inputs are cleaned up', async () => {
-  for (const route of ['pdf-to-excel', 'pdf-to-word', 'pdf-to-jpg', 'pdf-to-ppt', 'excel-to-pdf', 'excel-to-word', 'excel-to-ppt', 'pdf-splitter', 'image-to-pdf', 'pdf-organizer', 'pdf-compressor', 'pdf-merger', 'zip-maker']) {
+  for (const route of ['pdf-to-excel', 'pdf-to-word', 'pdf-to-jpg', 'pdf-to-png', 'pdf-to-ppt', 'excel-to-pdf', 'excel-to-word', 'excel-to-ppt', 'pdf-splitter', 'image-to-pdf', 'pdf-organizer', 'pdf-compressor', 'pdf-merger', 'zip-maker']) {
     const response = await fetch(`${base}/${route}`, { method: 'POST', body: new FormData() });
     assert.equal(response.status, 400, route); await response.arrayBuffer();
   }
@@ -501,6 +538,7 @@ test('all endpoints reject missing files; invalid files and insufficient merge i
     ['pdf-to-excel', 'broken.pdf', Buffer.from('bad pdf'), 'file', 422],
     ['pdf-to-word', 'broken.pdf', Buffer.from('bad pdf'), 'file', 422],
     ['pdf-to-jpg', 'broken.pdf', Buffer.from('bad pdf'), 'file', 422],
+    ['pdf-to-png', 'broken.pdf', Buffer.from('bad pdf'), 'file', 422],
     ['pdf-to-ppt', 'broken.pdf', Buffer.from('bad pdf'), 'file', 422],
     ['excel-to-word', 'broken.xlsx', Buffer.from('bad excel'), 'file', 422],
     ['excel-to-pdf', 'broken.xlsx', Buffer.from('bad excel'), 'file', 422],

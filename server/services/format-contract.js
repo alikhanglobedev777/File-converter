@@ -7,6 +7,7 @@ const formats = Object.freeze({
   'pdf-to-excel': ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   'pdf-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   'pdf-to-jpg': ['jpg', 'image/jpeg'],
+  'pdf-to-png': ['png', 'image/png'],
   'pdf-to-ppt': ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
   'excel-to-pdf': ['pdf', 'application/pdf'],
   'excel-to-word': ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -53,9 +54,19 @@ async function verifyOutputFormat(service, filename) {
     const magic = Buffer.alloc(8);
     await handle.read(magic, 0, Math.min(8, stat.size), 0);
     const valid = extension === 'pdf' ? magic.subarray(0, 5).toString() === '%PDF-'
+      : extension === 'png' ? magic.equals(Buffer.from('89504e470d0a1a0a', 'hex'))
       : extension === 'jpg' ? magic[0] === 0xff && magic[1] === 0xd8 && magic[2] === 0xff
       : zipFormats.has(extension) && isZipHeader(magic);
     if (!valid) throw new OutputFormatError(`${service} returned content that is not ${extension.toUpperCase()}`);
+    if (extension === 'png') {
+      // PNG files must end with the 12-byte IEND chunk, not just a PNG header.
+      if (stat.size < 20) throw new OutputFormatError('Generated PNG file is incomplete');
+      const end = Buffer.alloc(12);
+      await handle.read(end, 0, 12, stat.size - 12);
+      if (!end.equals(Buffer.from('0000000049454e44ae426082', 'hex'))) {
+        throw new OutputFormatError('Generated PNG file is incomplete');
+      }
+    }
     if (extension === 'jpg') {
       const end = Buffer.alloc(2);
       await handle.read(end, 0, 2, stat.size - 2);
