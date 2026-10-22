@@ -7,9 +7,11 @@ import {
   safeOcrText, assembleOcrText, selectedOcrPages, textDownloadName,
 } from "../utils/ocrLimits";
 import "./OcrWorkspace.css";
+import { validateDownload } from "../utils/downloadFormat";
 
-function saveText(content, name) {
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+
+function saveBlob(blob, name) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -28,6 +30,7 @@ export default function OcrWorkspace() {
   const [running, setRunning] = useState(false);
   const [pageProgress, setPageProgress] = useState(null);
   const [partial, setPartial] = useState(false);
+  const [exportingWord, setExportingWord] = useState(false);
   const generationRef = useRef(0);
   const workerRef = useRef(null);
   const loadingRef = useRef(null);
@@ -166,6 +169,31 @@ export default function OcrWorkspace() {
     }
   };
 
+  // Opt-in export: only reviewed text, not the PDF, is sent to Express.
+  const exportWord = async () => {
+    if (!pages.length || running || exportingWord) return;
+    setExportingWord(true);
+    setError("");
+    try {
+      const response = await fetch(API_BASE_URL + "/api/ocr/word", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pages: pages.map(({ page, text }) => ({ page, text })) }),
+      });
+      if (!response.ok) {
+        const details = await response.json().catch(() => ({}));
+        throw new Error(details.error || "Word export failed.");
+      }
+      const blob = await response.blob();
+      const output = await validateDownload("ocr-to-word", response, blob, file?.name);
+      saveBlob(blob, output.filename);
+    } catch {
+      setError("Could not export Word. Try fewer pages or download TXT instead.");
+    } finally {
+      setExportingWord(false);
+    }
+  };
+
   const stopOcr = () => {
     abort();
     setRunning(false);
@@ -206,9 +234,13 @@ export default function OcrWorkspace() {
         <h2>Recognized text</h2>
         <p>Review and correct names, numbers and columns before downloading.</p>
       </div><button type="button" className="button button--primary" disabled={running}
-        onClick={() => saveText(assembleOcrText(pages), textDownloadName(file?.name))}>
+        onClick={() => saveBlob(new Blob([assembleOcrText(pages)], { type: "text/plain;charset=utf-8" }), textDownloadName(file?.name))}>
           <FiDownload /> Download editable TXT
+        </button>
+        <button type="button" className="button" onClick={exportWord} disabled={running || exportingWord}>
+          <FiDownload /> {exportingWord ? "Creating Word…" : "Download editable Word"}
         </button></div>
+      <p className="ocr-export-privacy">Word export sends only your reviewed text to the AK Converter server to create a DOCX. The original scanned PDF stays on your device.</p>
       {pages.map(item => <div className="ocr-page-result" key={item.page}>
         <label htmlFor={"ocr-result-" + item.page}>Page {item.page} · {item.method}</label>
         <textarea id={"ocr-result-" + item.page} value={item.text}
