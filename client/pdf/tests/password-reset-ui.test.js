@@ -19,3 +19,14 @@ test('reset-password verifies six digits before allowing a new password', async 
   assert.match(source, /\{resetToken && <form/);
   assert.doesNotMatch(source, /window\.location\.hash/);
 });
+
+
+test('unknown emails do not automatically navigate to OTP input or claim actual delivery', async () => {
+  const source = await readFile(new URL('../src/components/ForgotPassword.jsx', import.meta.url), 'utf8');
+  const requestHandler = source.slice(source.indexOf('const onSubmit = async'), source.indexOf('return <div className='));
+  assert.match(requestHandler, /setStatusMessage\(data\.message/);
+  assert.doesNotMatch(requestHandler, /navigate\("\/reset-password"/);
+  assert.match(source, /onClick=\{\(\) => navigate\("\/reset-password"/);
+  assert.match(source, /No email is sent for an unregistered address/);
+  assert.match(source, /Use a different email address/);
+});

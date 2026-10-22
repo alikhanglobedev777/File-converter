@@ -10,6 +10,8 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [submittedEmail, setSubmittedEmail] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const navigate = useNavigate();
 
   const onSubmit = async (event) => {
@@ -24,8 +26,11 @@ export default function ForgotPassword() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Unable to request a verification code.");
-      // The backend deliberately responds identically for unknown addresses.
-      navigate("/reset-password", { state: { email: email.trim().toLowerCase() } });
+      // The backend deliberately responds identically for registered and
+      // unknown addresses. Do not automatically open the verification screen:
+      // that used to misleadingly imply an email was sent to every address.
+      setSubmittedEmail(email.trim().toLowerCase());
+      setStatusMessage(data.message || "If that email is registered, check your inbox for a code.");
     } catch (err) {
       setError(err.message || "Could not request a verification code.");
     } finally {
@@ -39,7 +44,15 @@ export default function ForgotPassword() {
       <p>Enter the email address used to register. If an account exists, we'll send a six-digit code valid for 10 minutes.</p>
     </div>
     {error && <p className="auth-status auth-status--error" role="alert">{error}</p>}
-    <form className="auth-form" onSubmit={onSubmit}>
+    {statusMessage && <div className="auth-status" role="status">
+      <p>{statusMessage}</p>
+      <p>Check your inbox and spam folder. No email is sent for an unregistered address.</p>
+      <button className="button button--primary auth-submit" type="button"
+        onClick={() => navigate("/reset-password", { state: { email: submittedEmail } })}>
+        I received a code — Verify it <FiArrowRight />
+      </button>
+    </div>}
+    {!statusMessage && <form className="auth-form" onSubmit={onSubmit}>
       <label htmlFor="recovery-email">Registered email address</label>
       <div className="auth-field"><FiMail aria-hidden="true" />
         <input id="recovery-email" type="email" required maxLength={254} autoComplete="email"
@@ -48,7 +61,10 @@ export default function ForgotPassword() {
       <button type="submit" className="button button--primary auth-submit" disabled={submitting}>
         {submitting ? "Sending…" : <>Send six-digit code <FiArrowRight /></>}
       </button>
-    </form>
+    </form>}
+    {statusMessage && <button className="button" type="button" onClick={() => {
+      setStatusMessage(""); setSubmittedEmail(""); setError("");
+    }}>Use a different email address</button>}
     <p className="auth-card__bottom"><Link to="/login"><FiArrowLeft /> Back to login</Link></p>
   </div><AuthAside /></div>;
 }
