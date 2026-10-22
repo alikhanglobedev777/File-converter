@@ -4,6 +4,7 @@ const formats = {
   "pdf-to-excel": ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
   "pdf-to-word": ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
   "pdf-to-jpg": ["jpg", "image/jpeg"],
+  "pdf-to-png": ["png", "image/png"],
   "pdf-to-ppt": ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
   "excel-to-pdf": ["pdf", "application/pdf"],
   "excel-to-word": ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
@@ -46,6 +47,7 @@ export async function validateDownload(service, response, blob, originalFilename
   const bytes = new Uint8Array(await blob.slice(0, 8).arrayBuffer());
   const signature = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d
     ? "pdf"
+    : [0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a].every((byte,index)=>bytes[index]===byte) ? "png"
     : bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff ? "jpg"
       : isZip(bytes) ? "zip" : "unknown";
   const [extension, mime] = formats[service] || [];
@@ -53,6 +55,13 @@ export async function validateDownload(service, response, blob, originalFilename
   if (!extension || signature !== expectedSignature) {
     const actual = signature === "unknown" ? "unknown data" : `${signature.toUpperCase()} data`;
     throw new Error(`Incorrect download format: ${service} returned ${actual}, not ${extension?.toUpperCase() || "a supported file"}. Check that your backend is running the updated conversion route.`);
+  }
+  if (extension === 'png') {
+    const end = new Uint8Array(await blob.slice(-12).arrayBuffer());
+    const marker = [0,0,0,0,73,69,78,68,174,66,96,130];
+    if (blob.size < 20 || !marker.every((byte, index) => end[index] === byte)) {
+      throw new Error("The server returned an incomplete PNG. No damaged file was downloaded.");
+    }
   }
   if (extension === 'jpg') {
     const end = new Uint8Array(await blob.slice(-2).arrayBuffer());
