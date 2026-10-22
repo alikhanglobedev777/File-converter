@@ -1,4 +1,5 @@
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { convertPdfToExcel } = require('../services/pdfToExcel-service');
 const { convertPdfToWord } = require('../services/pdfToword-service');
 const { convertPdfToJpg, PdfPageSelectionError } = require('../services/pdfToJpg-service');
@@ -38,17 +39,29 @@ function conversion(service, convert, { multiple = false, minimum = 1, name } = 
       }));
       await recordConversion({ user: req.user, files, service, outputFormat: extension, status: downloadError ? 'failed' : 'success' });
     } catch (error) {
-      console.error('Conversion failed:', error.name);
-      let status = 422;
-      let message = 'Conversion failed. Check that the file is valid, supported, and not password-protected.';
+      // Log the *actual* exception privately. Previously only error.name was
+      // recorded, making all converter regressions look like invalid PDFs.
+      const errorId = randomUUID();
+      console.error('[conversion-error]', {
+        errorId, service, name: error?.name || 'Error',
+        message: error?.message || String(error),
+        stack: error?.stack,
+      });
+      let status = 500;
+      let message = 'The conversion server encountered an error. Please retry and share the reference ID if it continues.';
       if (error instanceof OutputFormatError) {
-        status = 500;
-        message = 'The server produced an invalid output file. No file was downloaded. Please retry or check the server logs.';
-      } else if (error instanceof PdfPageSelectionError || error instanceof PageSelectionError || error instanceof CompressionOptionsError || error instanceof ExportOptionsError) {
+        message = 'The server produced an invalid output file. No file was downloaded.';
+      } else if (error instanceof PdfPageSelectionError || error instanceof PageSelectionError ||
+                 error instanceof CompressionOptionsError || error instanceof ExportOptionsError) {
         status = 400;
         message = error.message;
+      } else if (['InvalidPDFException', 'PasswordException', 'MissingPDFException',
+                  'InvalidFileException', 'UnexpectedResponseException'].includes(error?.name) ||
+                 /^Invalid Excel file/i.test(error?.message || '')) {
+        status = 422;
+        message = 'The file could not be read. Check that it is valid and not password-protected.';
       }
-      if (!res.headersSent && !res.destroyed) res.status(status).json({ error: message });
+      if (!res.headersSent && !res.destroyed) res.status(status).json({ error: message, errorId });
       await recordConversion({ user: req.user, files, service, status: 'failed' });
     } finally {
       files.forEach((file) => safeUnlink(file.path));
