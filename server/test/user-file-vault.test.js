@@ -21,7 +21,7 @@ test('private vault supports safe document extensions, quotas and sanitized name
   assert.equal(validateRename('scan.pdf', 'other.html'), null);
   assert.equal(validateRename('scan.pdf', 'other.png'), null);
   assert.match(safeDownloadDisposition('My file.pdf'), /attachment; filename\*=UTF-8''My%20file\.pdf/);
-  assert.equal(Object.keys(ALLOWED).length, 11);
+  assert.equal(Object.keys(ALLOWED).length, 10);
 });
 
 test('upload validator confirms real bytes and rejects disguised executables or damaged files', () => {
