@@ -18,3 +18,18 @@
 .ocr-back a { color: var(--blue); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
 .ocr-results__heading > button { min-height: 42px; }
 .ocr-export-privacy { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 16px; }
+
+.ocr-table-editor { margin-top: 25px; padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.ocr-table-editor h3 { margin: 0 0 8px; font-size: 18px; color: var(--ink); }
+.ocr-table-editor p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.ocr-table-controls { display: flex; gap: 13px; flex-wrap: wrap; align-items: flex-end; margin: 16px 0; }
+.ocr-table-controls label { display: grid; gap: 5px; color: var(--ink); font-size: 12px; font-weight: 700; }
+.ocr-table-controls select { padding: 9px; border: 1px solid var(--line); border-radius: 8px; max-width: 100%; font-size: 12px; }
+.ocr-table-scroll { overflow-x: auto; max-height: 410px; border: 1px solid var(--line); border-radius: 10px; }
+.ocr-table-scroll table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12px; }
+.ocr-table-scroll th, .ocr-table-scroll td { border: 1px solid var(--line); padding: 7px; white-space: nowrap; }
+.ocr-table-scroll thead th { background: #f5f8fd; font-weight: 750; }
+.ocr-table-scroll td input { box-sizing: border-box; min-width: 125px; max-width: 220px; border: 1px solid var(--line); border-radius: 5px; padding: 9px 8px; color: var(--ink); }
+.ocr-table-scroll td input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+.ocr-table-scroll td button { background: transparent; color: #c33; padding: 8px; border: 0; cursor: pointer; }
+@media (max-width: 600px) { .ocr-table-editor { padding: 13px; } }
