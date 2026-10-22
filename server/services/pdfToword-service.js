@@ -6,7 +6,7 @@ const {
 const { writeOutput } = require('./output');
 const { collectArtwork } = require('./pdf-artwork');
 const {
-  openPdf, renderPage, extractLayout, positionedLines, isTableLayout, joinItems,
+  openPdf, renderPage, extractLayout, positionedLines, detectTableCells, joinItems,
 } = require('./pdf-layout');
 
 // A PDF page contains positioned text rather than flowing paragraphs. Rebuild
@@ -14,13 +14,21 @@ const {
 // text. Decorative imagery cannot always be reconstructed as Word shapes.
 const PAGE_MARGIN = 20; // PDF points
 
-function makeRun(item) {
+function makeRun(item, keepLightColor = false) {
+  const original = String(item.color || '000000').replace('#', '');
+  const rgb = /^[0-9A-F]{6}$/i.test(original) ? original : '000000';
+  const channel = offset => parseInt(rgb.slice(offset, offset + 2), 16);
+  const luminance = channel(0) * 0.2126 + channel(2) * 0.7152 + channel(4) * 0.0722;
+  // Text exported from a colored PDF band becomes illegible when that band
+  // is omitted or Word uses a light background. Tables keep their shading.
+  const textColor = !keepLightColor && luminance > 185
+    ? (channel(4) > channel(0) + 15 ? '355A75' : '30343B') : rgb;
   return new TextRun({
     text: item.text,
     bold: !!item.bold, italics: !!item.italic,
     font: item.font || 'Arial',
     size: Math.max(8, Math.min(144, Math.round((item.size || 10) * 2))),
-    color: item.color || '000000',
+    color: textColor,
   });
 }
 
@@ -42,7 +50,7 @@ function makeParagraphs(items, startingBottom = PAGE_MARGIN, pageWidth = 612) {
         // dates instead of inserting guessed numbers of spaces.
         tabStops.push({ type: TabStopType.LEFT,
           position: Math.min(Math.round((pageWidth - PAGE_MARGIN * 2) * 20),
-            Math.max(indentation + 1, Math.round((segment.x - PAGE_MARGIN) * 20))) });
+            Math.max(1, Math.round((segment.x - first.x) * 20))) });
         runs.push(new TextRun({ text: '\t' }));
       } else if (segment.x > right + 0.5) {
         runs.push(new TextRun({ text: ' ' }));
@@ -63,8 +71,7 @@ function makeParagraphs(items, startingBottom = PAGE_MARGIN, pageWidth = 612) {
   return paragraphs;
 }
 
-function buildEditableTable(layout) {
-  const cells = layout.cells;
+function buildEditableTable(layout, cells) {
   const left = Math.min(...cells.map(c => c.x));
   const right = Math.max(...cells.map(c => c.x + c.width));
   const width = Math.min(right - left, layout.width - PAGE_MARGIN * 2);
@@ -101,7 +108,7 @@ function buildEditableTable(layout) {
           margins: { top: 50, bottom: 50, left: 60, right: 60 },
           children: [new Paragraph({
             spacing: { before: 0, after: 0 },
-            children: [makeRun({ ...first, text: joinItems(contents) })],
+            children: [makeRun({ ...first, text: joinItems(contents) }, !!rect.fill)],
           })],
         });
       }),
@@ -118,11 +125,12 @@ function belongsToTable(item, cells) {
 
 function editablePage(layout) {
   if (!layout.items.length) return [];
-  if (!isTableLayout(layout)) return makeParagraphs(layout.items, PAGE_MARGIN, layout.width);
+  const tableCells = detectTableCells(layout);
+  if (!tableCells.length) return makeParagraphs(layout.items, PAGE_MARGIN, layout.width);
 
-  const top = Math.min(...layout.cells.map(c => c.y));
-  const bottom = Math.max(...layout.cells.map(c => c.y + c.height));
-  const outside = layout.items.filter(item => !belongsToTable(item, layout.cells));
+  const top = Math.min(...tableCells.map(c => c.y));
+  const bottom = Math.max(...tableCells.map(c => c.y + c.height));
+  const outside = layout.items.filter(item => !belongsToTable(item, tableCells));
   const before = outside.filter(item => item.y < top);
   const after = outside.filter(item => item.y >= top);
   const heading = makeParagraphs(before, PAGE_MARGIN, layout.width);
@@ -135,7 +143,7 @@ function editablePage(layout) {
       spacing: { before: Math.round(tableGap * 20), after: 0 },
       children: [new TextRun({ text: '' })],
     })] : []),
-    buildEditableTable(layout),
+    buildEditableTable(layout, tableCells),
     ...makeParagraphs(after, bottom, layout.width),
   ];
 }
