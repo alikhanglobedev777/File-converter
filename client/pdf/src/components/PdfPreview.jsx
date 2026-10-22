@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { analyzePdf, diagnosticMessage } from "../utils/pdfScanAnalysis";
 
 // PDF.js renders onto a canvas rather than relying on Android/iOS browsers to
 // display PDFs inside iframes (often shown as an unhelpful 'Open' button).
@@ -15,6 +16,7 @@ export default function PdfPreview({ file }) {
   const [status, setStatus] = useState("loading");
   const [rendering, setRendering] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [scanReport, setScanReport] = useState(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -37,6 +39,7 @@ export default function PdfPreview({ file }) {
     setPageNumber(1);
     setPageCount(0);
     setErrorMessage("");
+    setScanReport(null);
     setStatus("loading");
     setRendering(false);
 
@@ -52,6 +55,14 @@ export default function PdfPreview({ file }) {
       documentRef.current = loadedDoc;
       setPageCount(loadedDoc.numPages);
       setStatus("ready");
+      // Analyze only a bounded sample of pages. Never upload or run OCR.
+      // Failure must not interrupt the existing PDF preview.
+      try {
+        const report = await analyzePdf(loadedDoc, pdfjs.OPS, { maxPages: 5 });
+        if (!disposed) setScanReport(report);
+      } catch {
+        if (!disposed) setScanReport(null);
+      }
     })().catch((error) => {
       if (disposed) return;
       setErrorMessage(error?.name === "PasswordException"
@@ -147,7 +158,11 @@ export default function PdfPreview({ file }) {
           <button type="button" onClick={nextPage} disabled={pageNumber >= pageCount} aria-label="Next PDF page">Next</button>
         </div>
       )}
-      <p className="pdf-preview__privacy">Previewed on your device. Your file is only sent to the server when you start conversion.</p>
+      {scanReport && <div className="pdf-preview__privacy" role="status">
+        <strong>PDF text check:</strong> {diagnosticMessage(scanReport)}
+        {scanReport.partial && <span> Checked {scanReport.sampledPages} of {scanReport.totalPages} pages; other pages were not analyzed.</span>}
+      </div>}
+      <p className="pdf-preview__privacy">Previewed and checked on your device. Your file is only sent to the server when you start conversion.</p>
     </div>
   );
 }
