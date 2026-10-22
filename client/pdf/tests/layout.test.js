@@ -9,7 +9,7 @@ const project = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("every conversion endpoint is represented by one distinct tool", () => {
   assert.equal(services.length, 14);
-  assert.equal(new Set(services.map((tool) => tool.id)).size, 13);
+  assert.equal(new Set(services.map((tool) => tool.id)).size, 14);
   for (const tool of services) {
     assert.match(tool.id, /^[a-z]+(?:-[a-z]+)*$/);
     assert.equal(getService(tool.id), tool);
