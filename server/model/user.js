@@ -7,6 +7,8 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true, minlength: 6 },
     tokenVersion: { type: Number, default: 0 },
+    savedFileCount: { type: Number, default: 0, min: 0, select: false },
+    savedFileBytes: { type: Number, default: 0, min: 0, select: false },
     passwordResetTokenHash: { type: String, select: false },
     passwordResetExpiresAt: { type: Date, select: false },
     passwordResetRequestedAt: { type: Date, select: false },
