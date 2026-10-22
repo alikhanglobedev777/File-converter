@@ -57,7 +57,8 @@ function conversion(service, convert, { multiple = false, minimum = 1, name } = 
         message = error.message;
       } else if (['InvalidPDFException', 'PasswordException', 'MissingPDFException',
                   'InvalidFileException', 'UnexpectedResponseException'].includes(error?.name) ||
-                 /^Invalid Excel file/i.test(error?.message || '')) {
+                 /^(?:Invalid Excel file|Failed to parse PDF document)/i.test(error?.message || '') ||
+                 /No PDF header found/i.test(error?.message || '')) {
         status = 422;
         message = 'The file could not be read. Check that it is valid and not password-protected.';
       }
