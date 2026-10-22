@@ -31,12 +31,15 @@ function makeColorImage(document, fill, stroke, thickness = 1) {
 function collectArtwork(document, rendered, layout) {
   const { rectangles = [], lines = [], images = [] } = layout.graphics || {};
   const artwork = [], pageArea = layout.width * layout.height;
+  // Do not float large opaque PDF rectangles over editable Word text. They
+  // may be page backgrounds, decorative resume panels, or clipping shapes;
+  // drawing them as PNGs can create the giant solid blocks seen in Word.
+  // Only very thin decorative rules are safe to place as image objects.
   for (const rect of rectangles.slice(0, 180)) {
     if (!withinBounds(rect, layout)) continue;
     if (!rect.fill && !rect.stroke) continue;
-    // Preserve even wide color bands: unlike a full-page screenshot, this
-    // image contains only its solid shape and no text.
-    artwork.push({ ...rect, kind: 'shape',
+    if (rect.width > 4 && rect.height > 4) continue;
+    artwork.push({ ...rect, kind: 'rule',
       data: makeColorImage(document, rect.fill, rect.stroke, rect.lineWidth) });
   }
   for (const line of lines.slice(0, 160)) {
@@ -57,6 +60,12 @@ function collectArtwork(document, rendered, layout) {
     // A huge image containing its own visible text would duplicate the same
     // words underneath the editable runs. Leave full-page scans to OCR fallback.
     if (layout.items.length && image.width * image.height > pageArea * 0.7) continue;
+    // Some PDFs flatten a large background panel with text into an image.
+    // Avoid floating that over actual selectable text.
+    const coveredText = layout.items.filter(item =>
+      item.x >= image.x && item.x < image.x + image.width &&
+      item.y >= image.y && item.y < image.y + image.height);
+    if (coveredText.length >= 3 && image.width * image.height > pageArea * 0.05) continue;
     artwork.push({ ...image, kind: 'image', data: cropPage(document, rendered,
       image.x, image.y, image.width, image.height) });
   }
