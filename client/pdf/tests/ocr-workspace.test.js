@@ -41,7 +41,7 @@ test("OCR UI runs separately; only explicit Word export posts reviewed text, not
   assert.match(source, /Download editable TXT/);
   assert.match(source, /api\/ocr\/word/);
   assert.match(source, /body: JSON.stringify\(\{ pages: pages.map/);
-  assert.match(source, /The original scanned PDF stays on your device/);
+  assert.match(source, /The original scanned PDF or photo stays on your device/);
   assert.doesNotMatch(source, /FormData|XMLHttpRequest/);
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
   assert.match(app, /path="\/ocr"/);
