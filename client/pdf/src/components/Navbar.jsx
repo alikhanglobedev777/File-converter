@@ -123,7 +123,7 @@ export default function Navbar({ children }) {
             <div className="topbar__crumbs">
               <Link to="/">Workspace</Link>
               <FiChevronRight aria-hidden="true" />
-              <span>{activeTool?.title || (location.pathname === "/" ? "Overview" : location.pathname === "/login" ? "Log in" : location.pathname === "/signup" ? "Sign up" : location.pathname === "/history" ? "My History" : "Page not found")}</span>
+              <span>{activeTool?.title || (location.pathname === "/" ? "Overview" : location.pathname === "/login" ? "Log in" : location.pathname === "/signup" ? "Sign up" : location.pathname === "/history" ? "My History" : location.pathname === "/forgot-password" ? "Forgot password" : location.pathname === "/reset-password" ? "Reset password" : "Page not found")}</span>
             </div>
           </div>
           <div className="topbar__right">
