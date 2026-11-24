@@ -6,7 +6,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "start": "node init && node server.js",
+    "start": "node server.js",
     "check:db": "node scripts/check-db.js",
     "test": "node --test"
   },
